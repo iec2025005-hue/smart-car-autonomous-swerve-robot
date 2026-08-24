@@ -1,0 +1,226 @@
+<?xml version="1.0"?>
+<robot name="smart_car" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!--  PROPERTIES & CONSTANTS                             -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <xacro:property name="wheelbase" value="0.20"/>       <!-- L = 20 cm -->
+  <xacro:property name="track_width" value="0.15"/>     <!-- W = 15 cm -->
+  <xacro:property name="chassis_length" value="0.25"/>  <!-- 25 cm -->
+  <xacro:property name="chassis_width" value="0.20"/>   <!-- 20 cm -->
+  <xacro:property name="chassis_height" value="0.08"/>  <!-- 8 cm -->
+  <xacro:property name="chassis_mass" value="2.5"/>     <!-- 2.5 kg -->
+  <xacro:property name="wheel_radius" value="0.0325"/>  <!-- 32.5 mm radius -->
+
+  <!-- Include Swerve Module and Sensor Macros -->
+  <xacro:include filename="$(find smart_car_description)/urdf/swerve_module.xacro"/>
+  <xacro:include filename="$(find smart_car_description)/urdf/sensors.xacro"/>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!--  BASE FOOTPRINT (Ground projection Z = 0)           -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <link name="base_footprint"/>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!--  BASE LINK (Vehicle Center at Wheel Center Height) -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link">
+    <!-- Visual representation of the chassis body -->
+    <visual>
+      <origin xyz="0 0 0.025" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="chassis_blue">
+        <color rgba="0.1 0.3 0.8 0.9"/>
+      </material>
+    </visual>
+
+    <!-- Top cover plate visual detail -->
+    <visual>
+      <origin xyz="0 0 0.068" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length * 0.9} ${chassis_width * 0.9} 0.006"/>
+      </geometry>
+      <material name="accent_silver">
+        <color rgba="0.85 0.85 0.9 1.0"/>
+      </material>
+    </visual>
+
+    <!-- Collision geometry -->
+    <collision>
+      <origin xyz="0 0 0.025" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+    </collision>
+
+    <!-- Inertial properties of the 2.5 kg chassis -->
+    <inertial>
+      <origin xyz="0 0 0.025" rpy="0 0 0"/>
+      <mass value="${chassis_mass}"/>
+      <inertia
+        ixx="0.009667" ixy="0.0" ixz="0.0"
+        iyy="0.014354" iyz="0.0"
+        izz="0.021354"/>
+    </inertial>
+  </link>
+
+  <gazebo reference="base_link">
+    <material>Gazebo/Blue</material>
+  </gazebo>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!--  FOUR INDEPENDENT SWERVE MODULES                    -->
+  <!-- ═══════════════════════════════════════════════════ -->
+
+  <!-- Front-Left (FL): x = +0.10, y = +0.075 -->
+  <xacro:swerve_module
+    prefix="fl"
+    parent="base_link"
+    x_offset="${wheelbase / 2.0}"
+    y_offset="${track_width / 2.0}"
+    z_offset="0.0"/>
+
+  <!-- Front-Right (FR): x = +0.10, y = -0.075 -->
+  <xacro:swerve_module
+    prefix="fr"
+    parent="base_link"
+    x_offset="${wheelbase / 2.0}"
+    y_offset="${-track_width / 2.0}"
+    z_offset="0.0"/>
+
+  <!-- Rear-Left (RL): x = -0.10, y = +0.075 -->
+  <xacro:swerve_module
+    prefix="rl"
+    parent="base_link"
+    x_offset="${-wheelbase / 2.0}"
+    y_offset="${track_width / 2.0}"
+    z_offset="0.0"/>
+
+  <!-- Rear-Right (RR): x = -0.10, y = -0.075 -->
+  <xacro:swerve_module
+    prefix="rr"
+    parent="base_link"
+    x_offset="${-wheelbase / 2.0}"
+    y_offset="${-track_width / 2.0}"
+    z_offset="0.0"/>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!--  GAZEBO SIMULATION PLUGINS                          -->
+  <!-- ═══════════════════════════════════════════════════ -->
+
+  <!-- Joint State Publisher Plugin -->
+  <gazebo>
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+      <joint_name>fl_steer_joint</joint_name>
+      <joint_name>fr_steer_joint</joint_name>
+      <joint_name>rl_steer_joint</joint_name>
+      <joint_name>rr_steer_joint</joint_name>
+      <joint_name>fl_wheel_joint</joint_name>
+      <joint_name>fr_wheel_joint</joint_name>
+      <joint_name>rl_wheel_joint</joint_name>
+      <joint_name>rr_wheel_joint</joint_name>
+    </plugin>
+  </gazebo>
+
+  <!-- 4× Position Controllers for Steering Joints -->
+  <gazebo>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>fl_steer_joint</joint_name>
+      <topic>fl_steer_cmd</topic>
+      <p_gain>80.0</p_gain>
+      <i_gain>0.5</i_gain>
+      <d_gain>2.0</d_gain>
+      <i_max>5.0</i_max>
+      <i_min>-5.0</i_min>
+      <cmd_max>15.0</cmd_max>
+      <cmd_min>-15.0</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>fr_steer_joint</joint_name>
+      <topic>fr_steer_cmd</topic>
+      <p_gain>80.0</p_gain>
+      <i_gain>0.5</i_gain>
+      <d_gain>2.0</d_gain>
+      <i_max>5.0</i_max>
+      <i_min>-5.0</i_min>
+      <cmd_max>15.0</cmd_max>
+      <cmd_min>-15.0</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>rl_steer_joint</joint_name>
+      <topic>rl_steer_cmd</topic>
+      <p_gain>80.0</p_gain>
+      <i_gain>0.5</i_gain>
+      <d_gain>2.0</d_gain>
+      <i_max>5.0</i_max>
+      <i_min>-5.0</i_min>
+      <cmd_max>15.0</cmd_max>
+      <cmd_min>-15.0</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>rr_steer_joint</joint_name>
+      <topic>rr_steer_cmd</topic>
+      <p_gain>80.0</p_gain>
+      <i_gain>0.5</i_gain>
+      <d_gain>2.0</d_gain>
+      <i_max>5.0</i_max>
+      <i_min>-5.0</i_min>
+      <cmd_max>15.0</cmd_max>
+      <cmd_min>-15.0</cmd_min>
+    </plugin>
+  </gazebo>
+
+  <!-- 4× Velocity Controllers for Drive Wheel Joints -->
+  <gazebo>
+    <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+      <joint_name>fl_wheel_joint</joint_name>
+      <topic>fl_wheel_cmd</topic>
+      <use_velocity_commands>true</use_velocity_commands>
+      <p_gain>15.0</p_gain>
+      <i_gain>0.1</i_gain>
+      <d_gain>0.05</d_gain>
+      <cmd_max>10.0</cmd_max>
+      <cmd_min>-10.0</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+      <joint_name>fr_wheel_joint</joint_name>
+      <topic>fr_wheel_cmd</topic>
+      <use_velocity_commands>true</use_velocity_commands>
+      <p_gain>15.0</p_gain>
+      <i_gain>0.1</i_gain>
+      <d_gain>0.05</d_gain>
+      <cmd_max>10.0</cmd_max>
+      <cmd_min>-10.0</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+      <joint_name>rl_wheel_joint</joint_name>
+      <topic>rl_wheel_cmd</topic>
+      <use_velocity_commands>true</use_velocity_commands>
+      <p_gain>15.0</p_gain>
+      <i_gain>0.1</i_gain>
+      <d_gain>0.05</d_gain>
+      <cmd_max>10.0</cmd_max>
+      <cmd_min>-10.0</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+      <joint_name>rr_wheel_joint</joint_name>
+      <topic>rr_wheel_cmd</topic>
+      <use_velocity_commands>true</use_velocity_commands>
+      <p_gain>15.0</p_gain>
+      <i_gain>0.1</i_gain>
+      <d_gain>0.05</d_gain>
+      <cmd_max>10.0</cmd_max>
+      <cmd_min>-10.0</cmd_min>
+    </plugin>
+  </gazebo>
+
+</robot>

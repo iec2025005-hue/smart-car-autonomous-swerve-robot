@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="swerve_module" params="prefix parent x_offset y_offset z_offset">
+
+    <!-- 1. STEERING JOINT (Vertical rotation around Z axis) -->
+    <joint name="${prefix}_steer_joint" type="continuous">
+      <parent link="${parent}"/>
+      <child link="${prefix}_steer_link"/>
+      <origin xyz="${x_offset} ${y_offset} ${z_offset}" rpy="0 0 0"/>
+      <axis xyz="0 0 1"/>
+      <dynamics damping="0.1" friction="0.05"/>
+      <limit effort="10.0" velocity="10.0"/>
+    </joint>
+
+    <!-- 2. STEERING LINK (Pod bracket) -->
+    <link name="${prefix}_steer_link">
+      <visual>
+        <origin xyz="0 0 0.015" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="0.022" length="0.03"/>
+        </geometry>
+        <material name="steer_bracket_mat">
+          <color rgba="0.2 0.2 0.2 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0.015" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="0.022" length="0.03"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 0.015" rpy="0 0 0"/>
+        <mass value="0.15"/>
+        <inertia
+          ixx="0.000035" ixy="0.0" ixz="0.0"
+          iyy="0.000035" iyz="0.0"
+          izz="0.000047"/>
+      </inertial>
+    </link>
+
+    <!-- 3. WHEEL JOINT (Axle rotation around Y axis) -->
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="${prefix}_steer_link"/>
+      <child link="${prefix}_wheel_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <dynamics damping="0.05" friction="0.02"/>
+      <limit effort="10.0" velocity="20.0"/>
+    </joint>
+
+    <!-- 4. WHEEL LINK -->
+    <link name="${prefix}_wheel_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="0.0325" length="0.026"/>
+        </geometry>
+        <material name="rubber_black">
+          <color rgba="0.1 0.1 0.1 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="0.0325" length="0.026"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <mass value="0.15"/>
+        <inertia
+          ixx="0.000048" ixy="0.0" ixz="0.0"
+          iyy="0.000079" iyz="0.0"
+          izz="0.000048"/>
+      </inertial>
+    </link>
+
+    <!-- 5. GAZEBO SURFACE / FRICTION PROPERTIES -->
+    <gazebo reference="${prefix}_steer_link">
+      <material>Gazebo/DarkGrey</material>
+    </gazebo>
+
+    <gazebo reference="${prefix}_wheel_link">
+      <material>Gazebo/Black</material>
+      <mu1>1.5</mu1>
+      <mu2>1.5</mu2>
+      <kp>1000000.0</kp>
+      <kd>100.0</kd>
+      <minDepth>0.001</minDepth>
+    </gazebo>
+
+  </xacro:macro>
+
+</robot>
