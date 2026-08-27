@@ -12,58 +12,63 @@ import config
 
 class SwerveKinematics:
     def __init__(self):
-        # L = distance between front and rear axles
-        self.L = config.SWERVE_WHEELBASE_LENGTH
-        # W = distance between left and right wheels
-        self.W = config.SWERVE_TRACK_WIDTH
-        self.max_speed = config.MAX_DRIVE_SPEED
+        # L = distance between front and rear axles (m)
+        self.L = float(config.SWERVE_WHEELBASE_LENGTH)
+        if self.L > 1.0:
+            self.L /= 100.0  # convert cm -> m
+        # W = distance between left and right wheels (m)
+        self.W = float(config.SWERVE_TRACK_WIDTH)
+        if self.W > 1.0:
+            self.W /= 100.0  # convert cm -> m
+        self.max_speed = float(config.MAX_DRIVE_SPEED)
 
     def calculate(self, vx: float, vy: float, omega: float) -> List[Tuple[float, float]]:
         """
-        Calculate wheel angles and speeds.
+        Calculate wheel angles and speeds in REP-103 robot coordinates.
         
         Parameters
         ----------
         vx : float
-            Forward velocity (positive is forward).
+            Forward velocity (+X forward).
         vy : float
-            Strafe velocity (positive is right).
+            Lateral velocity (+Y left).
         omega : float
-            Rotational velocity (positive is clockwise).
+            Rotational velocity (+Z CCW).
             
         Returns
         -------
         list of (angle_deg, speed) tuples for:
-            0: Front-Right
-            1: Front-Left
-            2: Rear-Left
-            3: Rear-Right
-        Angles are in degrees (0 = forward, 90 = right).
-        Speeds are scaled to config.MAX_DRIVE_SPEED.
+            0: Front-Right (x=+L/2, y=-W/2)
+            1: Front-Left  (x=+L/2, y=+W/2)
+            2: Rear-Left   (x=-L/2, y=+W/2)
+            3: Rear-Right  (x=-L/2, y=-W/2)
+        Angles are in degrees [-180, 180] (0 = forward, +90 = left, -90 = right).
+        Speeds are in m/s (or same units as vx, vy).
         """
-        # Intermediate variables
-        A = vx - omega * (self.W / 2.0)
-        B = vx + omega * (self.W / 2.0)
-        C = vy - omega * (self.L / 2.0)
-        D = vy + omega * (self.L / 2.0)
-        
-        # Calculate speeds and angles
-        # Front-Right (x=L/2, y=W/2) -> B, C
-        s_fr = math.hypot(B, C)
-        a_fr = math.atan2(C, B) * 180.0 / math.pi
-        
-        # Front-Left (x=L/2, y=-W/2) -> B, D
-        s_fl = math.hypot(B, D)
-        a_fl = math.atan2(D, B) * 180.0 / math.pi
-        
-        # Rear-Left (x=-L/2, y=-W/2) -> A, D
-        s_rl = math.hypot(A, D)
-        a_rl = math.atan2(D, A) * 180.0 / math.pi
-        
-        # Rear-Right (x=-L/2, y=W/2) -> A, C
-        s_rr = math.hypot(A, C)
-        a_rr = math.atan2(C, A) * 180.0 / math.pi
-        
+        # FL (x = +L/2, y = +W/2): vx_fl = vx - omega*W/2, vy_fl = vy + omega*L/2
+        v_fl_x = vx - omega * (self.W / 2.0)
+        v_fl_y = vy + omega * (self.L / 2.0)
+        s_fl = math.hypot(v_fl_x, v_fl_y)
+        a_fl = math.degrees(math.atan2(v_fl_y, v_fl_x))
+
+        # FR (x = +L/2, y = -W/2): vx_fr = vx + omega*W/2, vy_fr = vy + omega*L/2
+        v_fr_x = vx + omega * (self.W / 2.0)
+        v_fr_y = vy + omega * (self.L / 2.0)
+        s_fr = math.hypot(v_fr_x, v_fr_y)
+        a_fr = math.degrees(math.atan2(v_fr_y, v_fr_x))
+
+        # RL (x = -L/2, y = +W/2): vx_rl = vx - omega*W/2, vy_rl = vy - omega*L/2
+        v_rl_x = vx - omega * (self.W / 2.0)
+        v_rl_y = vy - omega * (self.L / 2.0)
+        s_rl = math.hypot(v_rl_x, v_rl_y)
+        a_rl = math.degrees(math.atan2(v_rl_y, v_rl_x))
+
+        # RR (x = -L/2, y = -W/2): vx_rr = vx + omega*W/2, vy_rr = vy - omega*L/2
+        v_rr_x = vx + omega * (self.W / 2.0)
+        v_rr_y = vy - omega * (self.L / 2.0)
+        s_rr = math.hypot(v_rr_x, v_rr_y)
+        a_rr = math.degrees(math.atan2(v_rr_y, v_rr_x))
+
         # Normalize speeds if any exceeds max_speed
         max_calculated = max(s_fr, s_fl, s_rl, s_rr)
         if max_calculated > self.max_speed:
@@ -72,19 +77,14 @@ class SwerveKinematics:
             s_fl *= scale
             s_rl *= scale
             s_rr *= scale
-            
-        # Normalize angles to [0, 360)
-        a_fr = a_fr % 360.0
-        a_fl = a_fl % 360.0
-        a_rl = a_rl % 360.0
-        a_rr = a_rr % 360.0
-        
+
         return [
             (a_fr, s_fr),
             (a_fl, s_fl),
             (a_rl, s_rl),
             (a_rr, s_rr)
         ]
+
 
 if __name__ == "__main__":
     print("Testing Swerve Kinematics")

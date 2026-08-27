@@ -74,7 +74,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /camera/image_raw
+        Value: /camera/image_annotated
       Value: true
   Enabled: true
   Global Options:

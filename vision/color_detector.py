@@ -70,7 +70,29 @@ class ColorDetector(BaseDetector):
                     confidence=1.0,
                     bbox=(x, y, w, h),
                     center=(cx, cy),
-                    extra={"area": area},
+                    extra={"area": area, "color": "red"},
+                )
+            )
+
+        # Also detect yellow / blue obstacles in the foreground
+        mask_yellow = cv2.inRange(hsv, np.array([18, 100, 100]), np.array([38, 255, 255]))
+        mask_blue = cv2.inRange(hsv, np.array([100, 100, 100]), np.array([130, 255, 255]))
+        mask_obs = cv2.bitwise_or(mask_yellow, mask_blue)
+        mask_obs = cv2.morphologyEx(mask_obs, cv2.MORPH_OPEN, kernel, iterations=2)
+        obs_contours, _ = cv2.findContours(mask_obs, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for cnt in obs_contours:
+            area = cv2.contourArea(cnt)
+            if area < self._min_area:
+                continue
+            x, y, w, h = cv2.boundingRect(cnt)
+            cx, cy = x + w // 2, y + h // 2
+            detections.append(
+                Detection(
+                    label="obstacle",
+                    confidence=0.95,
+                    bbox=(x, y, w, h),
+                    center=(cx, cy),
+                    extra={"area": area, "color": "obstacle"},
                 )
             )
 

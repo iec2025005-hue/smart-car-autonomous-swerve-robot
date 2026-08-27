@@ -174,15 +174,16 @@ void loop() {
                 values[idx] = data.substring(start).toFloat();
             }
 
-            // Convert degrees to steps (200 steps per 360 deg = 0.555 steps/deg for Full Step)
-            // Note: If using 1/16 microstepping, multiply this by 16.
+            // SwerveKinematics sends tuples in order: [0]=FR, [1]=FL, [2]=RL(BL), [3]=RR(BR)
+            // String format: "SWERVE:a_fr,s_fr,a_fl,s_fl,a_rl,s_rl,a_rr,s_rr"
+            // Convert degrees to steps (200 full steps per 360 deg = 0.555 steps/deg for 1.8° steppers)
             float deg_to_steps = 200.0 / 360.0;
 
-            steerFL->moveTo(values[0] * deg_to_steps);
-            setDCMotorSpeed(CHAN_FL_IN1, CHAN_FL_IN2, (int)values[1]);
+            steerFR->moveTo(values[0] * deg_to_steps);
+            setDCMotorSpeed(CHAN_FR_IN1, CHAN_FR_IN2, (int)values[1]);
 
-            steerFR->moveTo(values[2] * deg_to_steps);
-            setDCMotorSpeed(CHAN_FR_IN1, CHAN_FR_IN2, (int)values[3]);
+            steerFL->moveTo(values[2] * deg_to_steps);
+            setDCMotorSpeed(CHAN_FL_IN1, CHAN_FL_IN2, (int)values[3]);
 
             steerBL->moveTo(values[4] * deg_to_steps);
             setDCMotorSpeed(CHAN_BL_IN1, CHAN_BL_IN2, (int)values[5]);

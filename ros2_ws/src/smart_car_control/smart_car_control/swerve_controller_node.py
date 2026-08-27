@@ -60,10 +60,10 @@ class SwerveControllerNode(Node):
     def __init__(self):
         super().__init__('swerve_controller_node')
 
-        # ── Parameters & Dimensions ────────────────────────────────
-        self.wheel_radius = 0.0325     # 32.5 mm
-        self.wheelbase = 0.20          # L = 20 cm
-        self.track_width = 0.15        # W = 15 cm
+        # ── Parameters & Dimensions (from Fusion 360 CAD) ─────────
+        self.wheel_radius = 0.0541     # 54.1 mm radius
+        self.wheelbase = 0.208         # L = 20.8 cm
+        self.track_width = 0.2285      # W = 22.85 cm
 
         # Module physical offsets (REP-103: +X front, +Y left)
         self.module_positions = {
@@ -142,76 +142,73 @@ class SwerveControllerNode(Node):
             if i < len(msg.velocity):
                 self.current_joint_velocities[name] = msg.velocity[i]
 
-    def optimize_steering(self, current_angle: float, target_angle: float, target_speed: float):
-        """Shortest path steering optimization with 180-deg reversal."""
+    def optimize_steering(self, actual_angle: float, target_angle: float, target_speed: float):
+        """Shortest path steering optimization with continuous angle unwrapping and cosine scaling."""
         if abs(target_speed) < 1e-4:
             # Idle: maintain current angle to prevent jitter
-            return current_angle, 0.0
+            return actual_angle, 0.0
 
-        # Compute angular difference normalized to [-pi, pi]
-        delta = normalize_angle(target_angle - current_angle)
+        # Shortest-angle difference in [-pi, pi]
+        delta = normalize_angle(target_angle - actual_angle)
 
-        if abs(delta) > (math.pi / 2.0):
-            # Reverse wheel direction and rotate 180 deg
+        if abs(delta) > (math.pi / 2.0 + 1e-3):
+            # Reverse wheel direction instead of rotating > 90 deg
             if delta > 0:
-                cmd_angle = current_angle + delta - math.pi
+                opt_delta = delta - math.pi
             else:
-                cmd_angle = current_angle + delta + math.pi
+                opt_delta = delta + math.pi
+            cmd_angle = actual_angle + opt_delta
             cmd_speed = -target_speed
         else:
-            cmd_angle = current_angle + delta
+            cmd_angle = actual_angle + delta
             cmd_speed = target_speed
+
+        # Cosine velocity scaling: scale drive speed by cos(angular error)
+        # Prevents wheel scrub/drag while steering pod is rotating
+        ang_err = normalize_angle(cmd_angle - actual_angle)
+        scale_factor = max(0.0, math.cos(ang_err))
+        cmd_speed *= scale_factor
 
         return cmd_angle, cmd_speed
 
     def control_loop(self):
-        # 1. READ TARGET TWIST
-        vx_ros = self.target_twist.linear.x
-        vy_ros = self.target_twist.linear.y
-        wz_ros = self.target_twist.angular.z
+        # 1. READ TARGET TWIST (m/s, rad/s in REP-103)
+        vx = self.target_twist.linear.x
+        vy = self.target_twist.linear.y
+        wz = self.target_twist.angular.z
 
-        # 2. ADAPT TO EXISTING KINEMATICS CONVENTION
-        # Existing kinematics: +vx = fwd, +vy = right, +omega = CW
-        # ROS convention:      +vx = fwd, +vy = left,  +omega = CCW
-        # Scaling factor: translate m/s to scaled speed magnitude
-        scale = 100.0  # nominal speed scaling for kinematics calculation
-        vx_kin = vx_ros * scale
-        vy_kin = -vy_ros * scale
-        omega_kin = -wz_ros * scale
-
-        # 3. EVALUATE EXISTING SWERVE KINEMATICS
+        # 2. EVALUATE SWERVE KINEMATICS
         # Returns [(a_fr, s_fr), (a_fl, s_fl), (a_rl, s_rl), (a_rr, s_rr)]
-        # angle in degrees [0, 360), speed in scaled units
-        results = self.kinematics.calculate(vx_kin, vy_kin, omega_kin)
+        # angle in degrees [-180, 180], speed in m/s
+        results = self.kinematics.calculate(vx, vy, wz)
 
         res_fr = results[0]
         res_fl = results[1]
         res_rl = results[2]
         res_rr = results[3]
 
-        # Convert outputs:
-        # kinematics angle_deg (0=fwd, 90=right) -> ROS radians (0=fwd, +pi/2=left, -pi/2=right)
         raw_modules = {
-            'fr': (-math.radians(res_fr[0]), (res_fr[1] / scale)),
-            'fl': (-math.radians(res_fl[0]), (res_fl[1] / scale)),
-            'rl': (-math.radians(res_rl[0]), (res_rl[1] / scale)),
-            'rr': (-math.radians(res_rr[0]), (res_rr[1] / scale)),
+            'fr': (math.radians(res_fr[0]), res_fr[1]),
+            'fl': (math.radians(res_fl[0]), res_fl[1]),
+            'rl': (math.radians(res_rl[0]), res_rl[1]),
+            'rr': (math.radians(res_rr[0]), res_rr[1]),
         }
 
-        # 4. APPLY SHORTEST-PATH OPTIMIZATION & CONVERT TO WHEEL ANGULAR VELOCITY
+        # 3. APPLY SHORTEST-PATH OPTIMIZATION & CONVERT TO WHEEL ANGULAR VELOCITY
         cmd_steer = {}
         cmd_wheel = {}
 
         for mod, (target_ang, target_spd) in raw_modules.items():
-            prev_ang = self.last_steer_angles[mod]
-            opt_ang, opt_spd = self.optimize_steering(prev_ang, target_ang, target_spd)
+            s_joint = f"{mod}_steer_joint"
+            cur_pos = self.current_joint_positions.get(s_joint, self.last_steer_angles[mod])
+            opt_ang, opt_spd = self.optimize_steering(cur_pos, target_ang, target_spd)
             self.last_steer_angles[mod] = opt_ang
 
             cmd_steer[mod] = opt_ang
             # Wheel angular velocity: omega = v / r
             cmd_wheel[mod] = opt_spd / self.wheel_radius
 
-        # 5. PUBLISH JOINT COMMANDS
+        # 4. PUBLISH JOINT COMMANDS
         self.pub_fl_steer.publish(Float64(data=float(cmd_steer['fl'])))
         self.pub_fr_steer.publish(Float64(data=float(cmd_steer['fr'])))
         self.pub_rl_steer.publish(Float64(data=float(cmd_steer['rl'])))
@@ -222,16 +219,37 @@ class SwerveControllerNode(Node):
         self.pub_rl_wheel.publish(Float64(data=float(cmd_wheel['rl'])))
         self.pub_rr_wheel.publish(Float64(data=float(cmd_wheel['rr'])))
 
-        # 6. COMPUTE ODOMETRY FROM FEEDBACK
+        # 5. COMPUTE ODOMETRY FROM FEEDBACK
         self.update_odometry()
+
 
     def update_odometry(self):
         now = self.get_clock().now()
-        dt = (now - self.last_odom_time).nanoseconds * 1e-9
-        self.last_odom_time = now
+        if now.nanoseconds == 0:
+            return  # sim time not ready yet
 
-        if dt <= 0.0 or dt > 1.0:
+        if self.last_odom_time.nanoseconds == 0:
+            self.last_odom_time = now
             return
+
+        dt = (now - self.last_odom_time).nanoseconds * 1e-9
+
+        # Handle simulation reset or time jump
+        if dt < 0.0:
+            self.last_odom_time = now
+            self.odom_x = 0.0
+            self.odom_y = 0.0
+            self.odom_yaw = 0.0
+            return
+
+
+        if dt == 0.0:
+            return
+
+        if dt > 1.0:
+            dt = 0.02
+
+        self.last_odom_time = now
 
         # Extract actual joint feedback
         wheel_joints = ['fl_wheel_joint', 'fr_wheel_joint', 'rl_wheel_joint', 'rr_wheel_joint']

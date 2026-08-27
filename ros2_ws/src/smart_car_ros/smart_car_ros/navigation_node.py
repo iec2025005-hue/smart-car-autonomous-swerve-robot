@@ -2,16 +2,15 @@
 """
 smart_car_ros/navigation_node.py
 
-ROS 2 High-Level Navigation Node
-- Consumes /target_point (geometry_msgs/Point) from vision_node.
-- Executes the existing PID control (navigation/pid.py) and behavioral strategies (Follow, Avoid, Patrol, Idle).
-- Publishes /cmd_vel (geometry_msgs/Twist) to drive the Swerve Controller in simulation or physical hardware.
-- Supports dynamic mode switching via /navigation/set_mode (std_msgs/String).
+ROS 2 Navigation Adapter Node
+- Directly wraps the original navigation/navigator.py (Navigator) without duplicating logic.
+- The original Navigator class remains the single source of truth for all navigation
+  decisions, behavioral modes (follow, avoid, patrol, idle), PID controller integration,
+  and swerve commands.
 """
 
 import os
 import sys
-import math
 
 # Add repository root to python sys.path to import existing navigation modules directly
 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
@@ -19,12 +18,51 @@ if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
 import config
-from navigation.pid import PIDController
+from navigation.navigator import Navigator
+from vision.detector import Detection
 
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Point, Twist
-from std_msgs.msg import String
+from std_msgs.msg import String, Float64MultiArray
+
+
+class RosNavigator(Navigator):
+    """Clean adapter extending original Navigator to publish ROS 2 /cmd_vel."""
+
+    def __init__(self, publish_twist_fn, publish_pid_fn, base_speed_mps: float = 0.35):
+        super().__init__()
+        self._publish_twist = publish_twist_fn
+        self._publish_pid = publish_pid_fn
+        self._base_speed_mps = base_speed_mps
+
+    def _cmd_swerve(self, vx: float, vy: float, omega: float) -> str:
+        # 1. Execute original kinematics calculation & command string generation
+        cmd_str = super()._cmd_swerve(vx, vy, omega)
+
+        # 2. Scale to ROS REP-103 units (m/s and rad/s)
+        scale = (self._base_speed_mps / float(config.BASE_SPEED)) if config.BASE_SPEED else 0.0023
+
+        twist = Twist()
+        twist.linear.x = float(vx * scale)
+        twist.linear.y = float(-vy * scale)
+        # Scale angular velocity (omega: 15 -> ~0.375 rad/s)
+        twist.angular.z = float(-omega * 0.025)
+
+        if self._mode != "idle":
+            self._publish_twist(twist)
+
+        # Publish PID diagnostics
+        pid_diag = Float64MultiArray()
+        last_err = getattr(self._pid, 'last_error', 0.0)
+        last_p = getattr(self._pid, 'last_p', 0.0)
+        last_i = getattr(self._pid, 'last_i', 0.0)
+        last_d = getattr(self._pid, 'last_d', 0.0)
+        last_out = getattr(self._pid, 'last_output', 0.0)
+        pid_diag.data = [float(last_err), float(last_p), float(last_i), float(last_d), float(last_out), float(twist.linear.x), float(twist.linear.y)]
+        self._publish_pid(pid_diag)
+
+        return cmd_str
 
 
 class NavigationNode(Node):
@@ -32,34 +70,42 @@ class NavigationNode(Node):
         super().__init__('navigation_node')
 
         # ── Declare Parameters ─────────────────────────────────────
-        self.declare_parameter('nav_mode', 'follow')
-        self.declare_parameter('base_speed', 0.4)           # 0.4 m/s
-        self.declare_parameter('frame_center_x', 320)       # 640x480 center
-        self.declare_parameter('tolerance_px', 40)          # 40 px deadband
+        self.declare_parameter('nav_mode', config.NAVIGATION_MODE)
+        self.declare_parameter('base_speed', 0.35)           # 0.35 m/s
 
-        self.mode = self.get_parameter('nav_mode').get_parameter_value().string_value.lower()
-        self.base_speed = self.get_parameter('base_speed').get_parameter_value().double_value
-        self.frame_cx = self.get_parameter('frame_center_x').get_parameter_value().integer_value
-        self.tolerance = self.get_parameter('tolerance_px').get_parameter_value().integer_value
-
-        # Existing PID controller instance
-        self.pid = PIDController(
-            kp=0.003,
-            ki=0.0001,
-            kd=0.0005,
-            output_limits=(-0.6, 0.6)
-        )
-
-        self.get_logger().info(f'Navigation Node ready [mode={self.mode}, base_speed={self.base_speed:.2f} m/s]')
+        nav_mode = self.get_parameter('nav_mode').get_parameter_value().string_value.lower()
+        base_speed = self.get_parameter('base_speed').get_parameter_value().double_value
 
         # ── Publishers ─────────────────────────────────────────────
         self.pub_cmd_vel = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.pub_pid_diag = self.create_publisher(Float64MultiArray, '/pid/diagnostics', 10)
+        self.pub_nav_state = self.create_publisher(String, '/navigation/state', 10)
+
+        # Wrap existing Navigator directly
+        self.navigator = RosNavigator(
+            publish_twist_fn=self.pub_cmd_vel.publish,
+            publish_pid_fn=self.pub_pid_diag.publish,
+            base_speed_mps=base_speed
+        )
+        self.navigator.set_mode(nav_mode)
+
+        self.last_target = None
+        self.last_obstacle = None
+
+        self.get_logger().info(f'Navigation Node ready (wrapping original Navigator) [mode={nav_mode}, base_speed={base_speed:.2f} m/s]')
 
         # ── Subscribers ────────────────────────────────────────────
         self.sub_target = self.create_subscription(
             Point,
             '/target_point',
             self.target_callback,
+            10
+        )
+
+        self.sub_obstacle = self.create_subscription(
+            Point,
+            '/obstacle_point',
+            self.obstacle_callback,
             10
         )
 
@@ -71,72 +117,42 @@ class NavigationNode(Node):
         )
 
     def set_mode_callback(self, msg: String):
-        old_mode = self.mode
-        self.mode = msg.data.strip().lower()
-        self.pid.reset()
-        self.get_logger().info(f"Navigation mode changed: '{old_mode}' -> '{self.mode}'")
+        mode = msg.data.strip().lower()
+        self.navigator.set_mode(mode)
+        if mode == "idle":
+            self.pub_cmd_vel.publish(Twist())
+        self.pub_nav_state.publish(String(data=self.navigator.state))
+        self.get_logger().info(f"Navigation mode changed to: '{mode}'")
+
+    def obstacle_callback(self, msg: Point):
+        if msg.z > 0.0:  # Obstacle present
+            w = int(msg.z)
+            self.last_obstacle = Detection(
+                label="obstacle",
+                confidence=0.95,
+                bbox=(int(msg.x - w // 2), int(msg.y - w // 2), w, w),
+                center=(int(msg.x), int(msg.y))
+            )
+        else:
+            self.last_obstacle = None
 
     def target_callback(self, msg: Point):
-        twist = Twist()
+        detections = []
+        if msg.z > 0.0:  # Target found
+            w = int(msg.z) if msg.z > 1.0 else 40
+            detections.append(
+                Detection(
+                    label="target",
+                    confidence=1.0,
+                    bbox=(int(msg.x - w // 2), int(msg.y - w // 2), w, w),
+                    center=(int(msg.x), int(msg.y))
+                )
+            )
+        if self.last_obstacle is not None:
+            detections.append(self.last_obstacle)
 
-        # 1. IDLE MODE
-        if self.mode == 'idle':
-            self.pub_cmd_vel.publish(twist)
-            return
-
-        # Target lost flag: z < 0
-        target_found = (msg.z > 0.0)
-
-        # 2. FOLLOW MODE (Move forward + strafe laterally using PID)
-        if self.mode == 'follow':
-            if not target_found:
-                # No target detected -> stop
-                self.pub_cmd_vel.publish(twist)
-                return
-
-            error_x = msg.x - self.frame_cx
-            # In ROS REP-103, +Y is Left, -Y is Right.
-            # If target is to the right (error_x > 0), strafe right (-Y).
-            # If target is to the left (error_x < 0), strafe left (+Y).
-            if abs(error_x) > self.tolerance:
-                correction = -self.pid.compute(error_x)
-                twist.linear.y = float(correction)
-            else:
-                twist.linear.y = 0.0
-
-            twist.linear.x = float(self.base_speed)
-            twist.angular.z = 0.0
-
-        # 3. AVOID MODE (Strafe away from obstacle)
-        elif self.mode == 'avoid':
-            if not target_found:
-                # Path clear -> drive forward
-                twist.linear.x = float(self.base_speed)
-            else:
-                error_x = msg.x - self.frame_cx
-                twist.linear.x = float(self.base_speed * 0.5)
-                if error_x < 0:
-                    # Obstacle on Left -> Strafe Right (-Y)
-                    twist.linear.y = -float(self.base_speed)
-                else:
-                    # Obstacle on Right or Center -> Strafe Left (+Y)
-                    twist.linear.y = float(self.base_speed)
-
-        # 4. PATROL MODE (Drive straight, stop if obstacle in front)
-        elif self.mode == 'patrol':
-            if target_found and (abs(msg.x - self.frame_cx) < self.tolerance * 2):
-                # Obstacle directly ahead -> Stop
-                twist.linear.x = 0.0
-                twist.linear.y = 0.0
-            else:
-                twist.linear.x = float(self.base_speed)
-                twist.linear.y = 0.0
-
-        else:
-            self.get_logger().warn(f'Unknown nav_mode: {self.mode}')
-            twist = Twist()
-
-        self.pub_cmd_vel.publish(twist)
+        self.navigator.update(detections)
+        self.pub_nav_state.publish(String(data=self.navigator.state))
 
 
 def main(args=None):
@@ -154,3 +170,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+

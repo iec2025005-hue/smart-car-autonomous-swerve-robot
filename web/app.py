@@ -171,9 +171,60 @@ def api_emergency_stop():
     return jsonify({"success": True, "status": "STOPPED"})
 
 
-def start_server(host=config.WEB_HOST, port=config.WEB_PORT):
+def init_ros_bridge():
+    """Lightweight ROS 2 bridge to feed the web dashboard in simulation."""
+    try:
+        import rclpy
+        from sensor_msgs.msg import Image
+        from geometry_msgs.msg import Point
+        from std_msgs.msg import String
+        from cv_bridge import CvBridge
+
+        if not rclpy.ok():
+            rclpy.init()
+
+        node = rclpy.create_node('web_dashboard_bridge')
+        bridge = CvBridge()
+
+        def img_cb(msg: Image):
+            try:
+                frame = bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+                update_frame(frame)
+            except Exception:
+                pass
+
+        def tgt_cb(msg: Point):
+            if msg.z > 0:
+                update_status('target', f"({msg.x:.0f}, {msg.y:.0f})")
+            else:
+                update_status('target', "Searching...")
+
+        node.create_subscription(Image, '/camera/image_annotated', img_cb, 10)
+        node.create_subscription(Point, '/target_point', tgt_cb, 10)
+
+        pub_nav = node.create_publisher(String, '/navigation/set_mode', 10)
+        pub_vis = node.create_publisher(String, '/vision/set_mode', 10)
+
+        def _ros_set_nav(mode):
+            pub_nav.publish(String(data=str(mode)))
+
+        def _ros_set_vis(mode):
+            pub_vis.publish(String(data=str(mode)))
+
+        register_callbacks(set_nav_mode=_ros_set_nav, set_vision_mode=_ros_set_vis)
+
+        t = threading.Thread(target=lambda: rclpy.spin(node), daemon=True)
+        t.start()
+        log.info("ROS 2 Web Bridge active (subscribed to /camera/image_annotated)")
+    except Exception as e:
+        log.debug("ROS 2 Web Bridge not active: %s", e)
+
+
+def start_server(host=config.WEB_HOST, port=config.WEB_PORT, enable_ros_bridge: bool = False):
     """Start Flask server in a daemon thread."""
-    # Quiet Flask logging
+    if enable_ros_bridge:
+        init_ros_bridge()
+
     import logging
     log_flask = logging.getLogger("werkzeug")
     log_flask.setLevel(logging.ERROR)
@@ -186,3 +237,10 @@ def start_server(host=config.WEB_HOST, port=config.WEB_PORT):
     t.start()
     log.info("Web Dashboard running at http://%s:%d", host if host != "0.0.0.0" else "localhost", port)
     return t
+
+
+if __name__ == "__main__":
+    init_ros_bridge()
+    log.info("Starting standalone Smart Car Web Dashboard on http://localhost:%d", config.WEB_PORT)
+    app.run(host=config.WEB_HOST, port=config.WEB_PORT, threaded=True)
+

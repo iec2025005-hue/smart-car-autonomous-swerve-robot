@@ -1,10 +1,10 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, GroupAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, GroupAction, SetEnvironmentVariable
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration
+from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -16,30 +16,56 @@ def generate_launch_description():
     pkg_ros = get_package_share_directory('smart_car_ros')
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
 
+    # ── Set Resource Search Paths for Gazebo Mesh Loading ─────
+    resource_paths = [
+        os.path.dirname(pkg_description),
+        os.path.dirname(pkg_gazebo),
+        pkg_description,
+        pkg_gazebo,
+        os.environ.get('GZ_SIM_RESOURCE_PATH', ''),
+        os.environ.get('IGN_GAZEBO_RESOURCE_PATH', '')
+    ]
+    resource_path_str = ':'.join([p for p in resource_paths if p])
+
+    set_gz_resource_path = SetEnvironmentVariable(
+        name='GZ_SIM_RESOURCE_PATH',
+        value=resource_path_str
+    )
+    set_ign_resource_path = SetEnvironmentVariable(
+        name='IGN_GAZEBO_RESOURCE_PATH',
+        value=resource_path_str
+    )
+
     # ── File Paths ─────────────────────────────────────────────
     world_path = os.path.join(pkg_gazebo, 'worlds', 'smart_car_arena.sdf')
     xacro_file = os.path.join(pkg_description, 'urdf', 'smart_car.urdf.xacro')
     rviz_config = os.path.join(pkg_description, 'rviz', 'smart_car.rviz')
 
     # ── Launch Configurations ──────────────────────────────────
-    vision_mode = LaunchConfiguration('vision_mode', default='color')
+    vision_mode = LaunchConfiguration('vision_mode', default='yolo')
+    target_class = LaunchConfiguration('target_class', default='chair')
     nav_mode = LaunchConfiguration('nav_mode', default='follow')
     base_speed = LaunchConfiguration('base_speed', default='0.35')
     rviz = LaunchConfiguration('rviz', default='true')
     headless = LaunchConfiguration('headless', default='false')
 
     # ── Robot Description (Xacro) ──────────────────────────────
+    robot_description_content = Command(['xacro ', xacro_file])
     robot_description = ParameterValue(
-        Command(['xacro ', xacro_file]),
+        robot_description_content,
         value_type=str
     )
+
+    gz_args = PythonExpression([
+        "'-r -s ' + '", world_path, "' if '", headless, "' == 'true' else '-r ' + '", world_path, "'"
+    ])
 
     # 1. Gazebo Sim Launch
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
-        launch_arguments={'gz_args': ['-r ', world_path]}.items(),
+        launch_arguments={'gz_args': gz_args}.items(),
     )
 
     # 2. Robot State Publisher
@@ -61,8 +87,9 @@ def generate_launch_description():
         name='spawn_smart_car',
         output='screen',
         arguments=[
-            '-topic', 'robot_description',
+            '-world', 'smart_car_world',
             '-name', 'smart_car',
+            '-string', robot_description_content,
             '-x', '0.0',
             '-y', '0.0',
             '-z', '0.05'
@@ -112,6 +139,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'vision_mode': vision_mode,
+            'target_class': target_class,
             'use_sim_time': True
         }]
     )
@@ -141,7 +169,10 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument('vision_mode', default_value='color', description='Vision mode: yolo, color, aruco, lane'),
+        set_gz_resource_path,
+        set_ign_resource_path,
+        DeclareLaunchArgument('vision_mode', default_value='yolo', description='Vision mode: yolo, color, aruco, lane'),
+        DeclareLaunchArgument('target_class', default_value='chair', description='Target YOLO class: chair, person, bottle, etc.'),
         DeclareLaunchArgument('nav_mode', default_value='follow', description='Navigation mode: follow, avoid, patrol, idle'),
         DeclareLaunchArgument('base_speed', default_value='0.35', description='Base navigation speed (m/s)'),
         DeclareLaunchArgument('rviz', default_value='true', description='Launch RViz2'),

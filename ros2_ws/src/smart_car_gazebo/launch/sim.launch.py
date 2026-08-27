@@ -16,8 +16,9 @@ def generate_launch_description():
     bridge_config = os.path.join(pkg_gazebo, 'config', 'ros_gz_bridge.yaml')
     xacro_file = os.path.join(pkg_description, 'urdf', 'smart_car.urdf.xacro')
 
+    robot_description_content = Command(['xacro ', xacro_file])
     robot_description = ParameterValue(
-        Command(['xacro ', xacro_file]),
+        robot_description_content,
         value_type=str
     )
 
@@ -50,8 +51,9 @@ def generate_launch_description():
         name='spawn_smart_car',
         output='screen',
         arguments=[
-            '-topic', 'robot_description',
+            '-world', 'smart_car_world',
             '-name', 'smart_car',
+            '-string', robot_description_content,
             '-x', '0.0',
             '-y', '0.0',
             '-z', '0.05'

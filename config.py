@@ -5,8 +5,8 @@ Target Hardware
 ───────────────
   • Raspberry Pi 4 (4 GB RAM), Cortex-A72 quad-core, no GPU accel.
   • Raspberry Pi Camera Module v2 (Sony IMX219, 8 MP) — CSI ribbon.
-  • STM32 Blue Pill (STM32F103C8T6) — motor controller, connected via UART.
-  • Stepper motors for steering, encoder DC motors for drive.
+  • ESP32 DevKit V1 — 4-wheel swerve motor controller, connected via UART.
+  • Stepper motors for steering (DRV8825), encoder DC motors for drive.
 
 Software Stack
 ──────────────
@@ -100,9 +100,9 @@ TRACKER_IOU_THRESHOLD = 0.3
 # ──────────────────────────────────────────────
 #  Navigation / PID / Swerve
 # ──────────────────────────────────────────────
-# Swerve Kinematics Dimensions (Update with real measurements!)
-SWERVE_WHEELBASE_LENGTH = 20.0      # distance between front and rear axles (cm)
-SWERVE_TRACK_WIDTH = 15.0           # distance between left and right wheels (cm)
+# Swerve Kinematics Dimensions (from Fusion 360 CAD)
+SWERVE_WHEELBASE_LENGTH = 20.8      # distance between front and rear axles (cm)
+SWERVE_TRACK_WIDTH = 22.85          # distance between left and right wheels (cm)
 MAX_DRIVE_SPEED = 255               # Maximum PWM value for drive motors
 
 BASE_SPEED = 150                    # Default translational speed
@@ -117,9 +117,9 @@ PID_KD = 0.1
 PID_OUTPUT_LIMITS = (-255, 255)     # clamp PID output to motor PWM range
 
 # ──────────────────────────────────────────────
-#  Serial / UART  (STM32/ESP32)
+#  Serial / UART (ESP32)
 # ──────────────────────────────────────────────
-SERIAL_PORT = "COM7"                # Windows COM port for ESP32
+SERIAL_PORT = "/dev/ttyUSB0"        # Serial port for ESP32 (e.g. /dev/ttyUSB0 or COM7)
 SERIAL_BAUDRATE = 115200
 SERIAL_TIMEOUT = 1.0                # seconds
 COMMAND_TERMINATOR = "\n"

@@ -48,7 +48,7 @@ class YoloDetector(BaseDetector):
 
         results = self._model(
             frame,
-            imgsz=320,
+            imgsz=640,
             conf=config.CONFIDENCE_THRESHOLD,
             iou=config.NMS_THRESHOLD,
             max_det=50,
@@ -97,7 +97,8 @@ class YoloDetector(BaseDetector):
         matched_ids = []
         if self._model and hasattr(self._model, "names"):
             for cid, name in self._model.names.items():
-                if target_str == str(cid) or target_str == str(name).lower():
+                name_str = str(name).lower()
+                if target_str == str(cid) or target_str == name_str or (target_str.endswith("s") and target_str[:-1] == name_str):
                     matched_ids.append(cid)
 
         if matched_ids:

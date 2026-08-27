@@ -1,21 +1,21 @@
 """
-communication/serial_comm.py -- UART serial link to the STM32 Blue Pill.
+communication/serial_comm.py -- UART serial link to the ESP32 Swerve Controller.
 
-Sends ASCII motor commands over UART and reads optional responses.
+Sends ASCII swerve commands over UART and reads responses.
 The protocol is newline-terminated text::
 
-    TX -> "FWD:150\\n"
-    RX <- "OK\\n"
+    TX -> "SWERVE:0.0,150.0,0.0,150.0,0.0,150.0,0.0,150.0\n"
+    RX <- "OK\n"
 
 Features
 --------
 * Thread-safe: all I/O is guarded by a ``threading.Lock``.
 * Auto-reconnect: ``send()`` transparently attempts to re-open the port
-  when the connection is lost (cable unplug, STM32 reset, etc.).
+  when the connection is lost (cable unplug, ESP32 reset, etc.).
 * Reads ``SERIAL_PORT``, ``SERIAL_BAUDRATE`` and ``SERIAL_TIMEOUT``
   from ``config.py``.
 * Compatible with Raspberry Pi 4 (``/dev/ttyUSB0`` or ``/dev/ttyAMA0``)
-  and STM32 Blue Pill (USB-CDC or UART bridge).
+  and ESP32 DevKit V1.
 
 Standalone test::
 

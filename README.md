@@ -1,148 +1,158 @@
-# Smart Car — Modular Image-Processing Robot
+# Smart Car — Autonomous 4-Wheel Independent Swerve Robot
 
-Autonomous image-processing car built on **Raspberry Pi 4** with the
-**Pi Camera Module v2** (CSI) and an **STM32 Blue Pill** motor controller.
+**Production Embedded System**: Raspberry Pi 4 (Ubuntu/Debian) + ESP32 DevKit V1  
+**Digital Twin & Simulation**: ROS 2 Lyrical + Gazebo Sim 10.4.0 (DART Physics)  
+**CAD Model Source of Truth**: Fusion 360 Solid Bodies (`cad/4_WheelsSwerve01.stp`)  
 
-## Hardware
+---
 
-| Component | Role |
-|---|---|
-| Raspberry Pi 4 (4 GB) | Main processor — vision & navigation |
-| Pi Camera Module v2 (CSI) | Image capture (Sony IMX219, 8 MP) |
-| STM32 Blue Pill (STM32F103) | Motor controller (receives UART commands) |
-| Stepper motors | Steering |
-| Encoder DC motors | Drive / movement |
+## 1. Project Overview & Architecture
 
-## Software Stack
-
-- **OS**: Raspberry Pi OS Bookworm (Debian 12)
-- **Camera**: picamera2 + libcamera
-- **Vision**: OpenCV, Ultralytics YOLOv8-nano
-- **Comms**: pyserial (UART to STM32)
-
-## Vision Modes
-
-The active vision pipeline is set in [`config.py`](config.py) → `VISION_MODE`:
-
-| Mode | Module | Description |
-|---|---|---|
-| `yolo` | `vision/yolo_detector.py` | YOLOv8-nano general object detection |
-| `color` | `vision/color_detector.py` | HSV colour-range detection |
-| `aruco` | `vision/aruco_detector.py` | ArUco fiducial marker detection & pose |
-| `lane` | `vision/lane_detector.py` | Canny + Hough lane-line detection |
-
-## Project Structure
+The Smart Car is a vision-guided 4-wheel independent swerve-drive robot. Each swerve pod has 2 degrees of freedom:
+1. **Steering Axis ($Z$)**: Continuous $360^\circ$ orientation driven by high-torque stepper motors.
+2. **Drive Axis ($Y$)**: Continuous rolling traction driven by geared DC motors with optical encoders.
 
 ```
-smart_car/
-├── config.py                  # Central configuration (vision mode, hardware, PID)
-├── main.py                    # Entry point — main loop
-├── requirements.txt
-├── README.md
-│
-├── vision/
-│   ├── camera.py              # Picamera2 / OpenCV capture
-│   ├── detector.py            # BaseDetector ABC + factory
-│   ├── yolo_detector.py       # YOLOv8-nano
-│   ├── color_detector.py      # HSV colour detection
-│   ├── aruco_detector.py      # ArUco markers
-│   ├── lane_detector.py       # Lane lines
-│   └── tracker.py             # OpenCV object tracker (MOSSE/KCF/CSRT)
-│
-├── navigation/
-│   ├── navigator.py           # Detection → motor commands
-│   └── pid.py                 # PID controller
-│
-├── communication/
-│   └── serial_comm.py         # UART to STM32 Blue Pill
-│
-├── display/
-│   └── overlay.py             # HUD overlay (bboxes, FPS, mode)
-│
-├── utils/
-│   ├── logger.py              # Rotating-file logger
-│   └── fps.py                 # FPS counter
-│
-└── models/                    # Place YOLOv8 .pt weights here
++-----------------------------------------------------------------------------------------+
+|                                REAL HARDWARE ARCHITECTURE                               |
++-----------------------------------------------------------------------------------------+
+Pi Camera Module v2 (CSI IMX219)
+       │ (RGB888 -> BGR, 640x480 @ 30 FPS)
+       ▼
+Vision Pipeline (YOLO / Color / ArUco / Lane)
+       │ Detections
+       ▼
+Object Tracker (MOSSE / KCF / CSRT)
+       │ Centroids & Bounding Boxes
+       ▼
+Navigator (Follow / Avoid / Patrol / Idle) + PID Controller
+       │ vx, vy, omega
+       ▼
+Swerve Kinematics (navigation/swerve_kinematics.py)
+       │ "SWERVE:a_fr,s_fr,a_fl,s_fl,a_rl,s_rl,a_rr,s_rr\n" (UART 115200)
+       ▼
+ESP32 DevKit V1 (esp32_firmware/src/main.cpp)
+       ├── 4× DRV8825 Stepper Motors (Independent Pod Steering)
+       └── 4× DC Motors (Independent Pod Drive + Encoders)
 ```
 
-## Quick Start
+```
++-----------------------------------------------------------------------------------------+
+|                                ROS 2 & GAZEBO SIMULATION                                |
++-----------------------------------------------------------------------------------------+
+Gazebo Sim Camera Sensor (smart_car_arena.sdf)
+       │ gz.msgs.Image
+       ▼
+ros_gz_bridge -> /camera/image_raw (sensor_msgs/Image)
+       │ cv_bridge -> BGR NumPy array
+       ▼
+smart_car_ros/vision_node (Directly executes vision/detector.py & tracker.py)
+       │ /target_point (geometry_msgs/Point) & /camera/image_annotated
+       ▼
+smart_car_ros/navigation_node (Directly wraps navigation/navigator.py & pid.py)
+       │ /cmd_vel (geometry_msgs/Twist)
+       ▼
+smart_car_control/swerve_controller_node (Directly executes navigation/swerve_kinematics.py)
+       │ 4× Steer Position & 4× Wheel Velocity Commands (Float64)
+       ▼
+ros_gz_bridge -> Gazebo Sim Joint Position & Velocity Controllers
+       │ Actuation
+       ▼
+Gazebo Simulated 4-Wheel Swerve Robot (smart_car.urdf.xacro)
+```
 
-### 1. Install dependencies
+---
 
+## 2. Hardware Specifications & Kinematic Dimensions
+
+All dimensions match the physical Fusion 360 CAD (`cad/4_WheelsSwerve01.stp`):
+
+| Parameter | CAD / Physical Value | Description |
+|---|:---:|---|
+| **Wheelbase ($L$)** | `0.208 m` ($208\text{ mm}$) | Longitudinal distance between front and rear steering axes. |
+| **Track Width ($W$)** | `0.2285 m` ($228.5\text{ mm}$) | Transverse distance between left and right steering axes. |
+| **Wheel Radius ($R$)** | `0.0541 m` ($54.12\text{ mm}$) | Outer radius of the drive wheels. |
+| **Steering-to-Wheel Offset** | `0.00 mm` | Vertical steering axis intersects wheel axle concentrically. |
+| **Steering Motors** | 4× NEMA 17 / DRV8825 | $1.8^\circ$ step angle ($200\text{ steps/rev}$) with FastAccelStepper. |
+| **Drive Motors** | 4× Geared DC Motors | 12V DC with TB6612FNG dual H-bridges and optical encoders. |
+| **Host SBC** | Raspberry Pi 4 (4GB/8GB) | High-level perception, planning, and web streaming. |
+| **Embedded Controller** | ESP32 DevKit V1 | Real-time motor timing, step pulse generation, and PID velocity control. |
+
+---
+
+## 3. ROS 2 Packages Overview
+
+* **`smart_car_description`**: URDF/Xacro models, corner-specific CAD STL meshes (`fl_steer_bracket.stl`, `fr_steer_bracket.stl`, `rl_steer_bracket.stl`, `rr_steer_bracket.stl`, `wheel_left.stl`, `wheel_right.stl`, `chassis.stl`), Gazebo joint controller plugins, and RViz configuration.
+* **`smart_car_control`**: `swerve_controller_node` wrapping [`navigation/swerve_kinematics.py`](navigation/swerve_kinematics.py) with continuous modulo angle unwrapping, cosine velocity scaling, odometry computation, and `/odom` + `/tf` broadcast.
+* **`smart_car_gazebo`**: Simulation launch files, materials, and the arena world (`smart_car_arena.sdf`) with visual landmarks and ground physics.
+* **`smart_car_ros`**: `vision_node` (OpenCV perception + MOSSE tracker) and `navigation_node` (wraps [`navigation/navigator.py`](navigation/navigator.py) and [`navigation/pid.py`](navigation/pid.py)).
+
+---
+
+## 4. Vision & Navigation Subsystems
+
+### Perception Modes (`/vision/set_mode`)
+1. **`color`**: Dual HSV red thresholding with morphology and contour area filtering.
+2. **`aruco`**: OpenCV ArUco detector using `DICT_4X4_50` dictionary.
+3. **`lane`**: Perspective transform (birds-eye view), white/yellow thresholding, histogram sliding window, and polynomial lane center tracking.
+4. **`yolo`**: Ultralytics YOLOv8-nano (`models/yolov8n.pt`) with class filtering.
+
+### Navigation Modes (`/navigation/set_mode`)
+1. **`follow`**: Drives forward while using closed-loop PID error correction to center the target in frame.
+2. **`avoid`**: Holonomic lateral strafe away from the highest-confidence obstacle.
+3. **`patrol`**: Forward transit with automatic emergency stopping when obstacles enter close range.
+4. **`idle`**: Complete motor stop; vision pipeline continues streaming.
+
+---
+
+## 5. Build & Launch Instructions
+
+### Prerequisites (Ubuntu 26.04 LTS / ROS 2 Lyrical)
 ```bash
-# On Raspberry Pi OS Bookworm
-sudo apt update && sudo apt install -y python3-picamera2
-
-# Python packages
-pip install -r requirements.txt
+source /opt/ros/lyrical/setup.bash
 ```
 
-### 2. Download YOLOv8-nano weights
-
+### Build Workspace
 ```bash
-# Ultralytics auto-downloads on first run, or manually:
-mkdir -p models
-wget -O models/yolov8n.pt \
-  https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt
+cd /home/diya/smart_car/ros2_ws
+colcon build --symlink-install
+source install/setup.bash
 ```
 
-### 3. Run
-
+### Launch Simulation
 ```bash
-# Default mode (reads VISION_MODE from config.py)
-python main.py
+# Launch complete simulation with GUI, RViz, and perception
+ros2 launch smart_car_ros smart_car_sim.launch.py
 
-# Override vision mode
-python main.py --mode color
-
-# Enable live preview (requires display)
-python main.py --preview
-
-# Dry-run without serial (no STM32 needed)
-python main.py --no-serial --preview
+# Launch headless simulation for fast benchmarking / automated tests
+ros2 launch smart_car_ros smart_car_sim.launch.py headless:=true rviz:=false
 ```
 
-### 4. Test individual modules
+---
 
-Every module can be tested independently:
+## 6. Testing & Validation Commands
 
+### 1. Execute 8-Point Swerve Motion Benchmark (Tests A through H)
 ```bash
-python -m vision.yolo_detector
-python -m vision.color_detector
-python -m vision.aruco_detector
-python -m vision.lane_detector
-python -m vision.tracker
-python -m navigation.navigator
-python -m navigation.pid
-python -m communication.serial_comm
-python -m display.overlay
+python3 /home/diya/smart_car/ros2_ws/run_swerve_benchmark.py
 ```
 
-## Configuration
+### 2. Test Vision Detectors Unit Suite
+```bash
+python3 /home/diya/smart_car/tests/test_vision_detectors.py
+```
 
-All tuneable parameters are in [`config.py`](config.py). Key settings:
+### 3. Test Web Teleoperation & Live Stream
+```bash
+python3 /home/diya/smart_car/web/app.py
+# Access via browser at http://localhost:5000
+```
 
-| Setting | Default | Description |
-|---|---|---|
-| `VISION_MODE` | `"yolo"` | Active vision pipeline |
-| `CAMERA_BACKEND` | `"picamera2"` | Camera interface |
-| `MODEL_PATH` | `"models/yolov8n.pt"` | YOLO weights file |
-| `SERIAL_PORT` | `"/dev/ttyUSB0"` | STM32 UART port |
-| `NAVIGATION_MODE` | `"idle"` | Motor behaviour |
-| `PID_KP / KI / KD` | `0.4 / 0.0 / 0.1` | Steering PID gains |
+---
 
-## UART Protocol (Pi ↔ STM32)
+## 7. Documentation Index
 
-Commands are ASCII, newline-terminated:
-
-| Command | Description |
-|---|---|
-| `FWD:<speed>` | Drive forward (speed 0–255) |
-| `LEFT:<speed>` | Steer left |
-| `RIGHT:<speed>` | Steer right |
-| `STOP:0` | All stop |
-
-## License
-
-Private project — not for redistribution.
+* [`FINAL_PROJECT_STATUS.md`](FINAL_PROJECT_STATUS.md): Complete feature audit and test classifications across all subsystems.
+* [`SWERVE_TEST_RESULTS.md`](SWERVE_TEST_RESULTS.md): Numerical trajectory, joint angle, and wheel velocity logs for tests A through H.
+* [`HARDWARE_SETUP.md`](HARDWARE_SETUP.md): Electrical wiring, ESP32 pinout, motor drivers, encoders, and UART serial protocol.
+* [`SIMULATION_GUIDE.md`](SIMULATION_GUIDE.md): Detailed ROS 2 & Gazebo Sim user manual with runtime topics and teleoperation examples.

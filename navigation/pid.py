@@ -118,6 +118,12 @@ class PIDController:
         raw_output = p_term + i_term + d_term
         output = max(self._min_out, min(self._max_out, raw_output))
 
+        self.last_error = float(error)
+        self.last_p = float(p_term)
+        self.last_i = float(i_term)
+        self.last_d = float(d_term)
+        self.last_output = float(output)
+
         log.debug(
             "PID  error=%+8.2f  P=%+8.2f  I=%+8.2f  D=%+8.2f  "
             "raw=%+8.2f  out=%+8.2f  dt=%.4f",

@@ -26,12 +26,20 @@
     <!--  LIGHTING                                           -->
     <!-- ═══════════════════════════════════════════════════ -->
     <light type="directional" name="sun">
-      <cast_shadows>true</cast_shadows>
+      <cast_shadows>false</cast_shadows>
       <pose>0 0 10 0 0 0</pose>
-      <diffuse>0.85 0.85 0.85 1</diffuse>
-      <specular>0.2 0.2 0.2 1</specular>
-      <direction>-0.5 0.1 -0.9</direction>
+      <diffuse>1.0 1.0 1.0 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <direction>0.5 -0.1 -0.8</direction>
     </light>
+    <light type="directional" name="ambient_fill">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.6 0.6 0.6 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <direction>-0.5 0.1 -0.8</direction>
+    </light>
+
 
     <!-- ═══════════════════════════════════════════════════ -->
     <!--  GROUND PLANE                                       -->
@@ -147,13 +155,91 @@
     </model>
 
     <!-- ═══════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════ -->
     <!--  TEST TARGETS & OBSTACLES FOR VISION / NAVIGATION   -->
     <!-- ═══════════════════════════════════════════════════ -->
 
-    <!-- Red Target Cylinder (for Color & YOLO Target Follow) -->
+    <!-- 1. CHAIR TARGET MODEL (Photorealistic 3D target for YOLO chair follow) -->
+    <model name="chair_target">
+      <static>true</static>
+      <pose>2.5 0.0 0.45 0 0 3.14159</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.10 0.65 0.90</size></box></geometry>
+        </collision>
+        <visual name="chair_visual">
+          <geometry><box><size>0.02 0.65 0.90</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>/home/diya/smart_car/ros2_ws/src/smart_car_gazebo/materials/textures/chair_texture.png</albedo_map>
+                <roughness>0.9</roughness>
+                <metalness>0.0</metalness>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 2. PERSON TARGET MODEL (Photorealistic 3D target for YOLO person follow) -->
+    <model name="person_target">
+      <static>true</static>
+      <pose>2.4 1.3 0.80 0 0 3.14159</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.10 0.60 1.60</size></box></geometry>
+        </collision>
+        <visual name="person_visual">
+          <geometry><box><size>0.02 0.60 1.60</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>/home/diya/smart_car/ros2_ws/src/smart_car_gazebo/materials/textures/person_texture.png</albedo_map>
+                <roughness>0.9</roughness>
+                <metalness>0.0</metalness>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 3. BOTTLE TARGET MODEL (Photorealistic 3D target for YOLO bottle follow) -->
+    <model name="bottle_target">
+      <static>true</static>
+      <pose>2.0 -1.1 0.35 0 0 3.14159</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.10 0.35 0.70</size></box></geometry>
+        </collision>
+        <visual name="bottle_visual">
+          <geometry><box><size>0.02 0.35 0.70</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>/home/diya/smart_car/ros2_ws/src/smart_car_gazebo/materials/textures/bottle_texture.png</albedo_map>
+                <roughness>0.9</roughness>
+                <metalness>0.0</metalness>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+
+
+    <!-- 4. RED TARGET CYLINDER (for Color Follow Demonstrations) -->
     <model name="red_target_cylinder">
       <static>true</static>
-      <pose>1.5 0.0 0.2 0 0 0</pose>
+      <pose>2.4 -1.8 0.2 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry><cylinder><radius>0.12</radius><length>0.4</length></cylinder></geometry>
@@ -168,10 +254,29 @@
       </link>
     </model>
 
-    <!-- Blue Obstacle Box (Left) -->
+    <!-- 5. YELLOW OBSTACLE CYLINDER (Primary obstacle blocking forward path) -->
+    <model name="yellow_obstacle_cylinder">
+      <static>true</static>
+      <pose>1.2 0.18 0.2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.10</radius><length>0.4</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.10</radius><length>0.4</length></cylinder></geometry>
+          <material>
+            <ambient>0.9 0.8 0.1 1</ambient>
+            <diffuse>1.0 0.9 0.0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+
+    <!-- 6. BLUE OBSTACLE BOX (Lateral obstacle on the left) -->
     <model name="blue_obstacle_box">
       <static>true</static>
-      <pose>1.2 1.0 0.2 0 0 0</pose>
+      <pose>1.1 0.7 0.2 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry><box><size>0.3 0.3 0.4</size></box></geometry>
@@ -186,19 +291,55 @@
       </link>
     </model>
 
-    <!-- Yellow Marker Pillar (Right) -->
-    <model name="yellow_marker_pillar">
+    <!-- 7. ARUCO MARKER BOARD (ID 7 target for ArUco 6-DOF Pose Navigation Demo) -->
+    <model name="aruco_marker_board">
       <static>true</static>
-      <pose>1.2 -1.0 0.2 0 0 0</pose>
+      <pose>2.0 -0.6 0.25 0 0 3.14159</pose>
       <link name="link">
         <collision name="collision">
-          <geometry><cylinder><radius>0.10</radius><length>0.4</length></cylinder></geometry>
+          <geometry><box><size>0.05 0.35 0.35</size></box></geometry>
         </collision>
-        <visual name="visual">
-          <geometry><cylinder><radius>0.10</radius><length>0.4</length></cylinder></geometry>
+        <visual name="board_visual">
+          <geometry><box><size>0.05 0.35 0.35</size></box></geometry>
           <material>
-            <ambient>0.9 0.8 0.1 1</ambient>
-            <diffuse>1.0 0.9 0.0 1</diffuse>
+            <ambient>0.9 0.9 0.9 1</ambient>
+            <diffuse>0.9 0.9 0.9 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>../materials/textures/aruco_marker_7.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 8. LANE LINES (LEFT & RIGHT) (Boundary markings for Road Lane-Following Demo) -->
+    <model name="lane_left">
+      <static>true</static>
+      <pose>1.5 0.35 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>2.6 0.04 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <emissive>0.2 0.2 0.2 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="lane_right">
+      <static>true</static>
+      <pose>1.5 -0.35 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>2.6 0.04 0.001</size></box></geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <emissive>0.2 0.2 0.2 1</emissive>
           </material>
         </visual>
       </link>

@@ -1,0 +1,36 @@
+# Wavefront OBJ for Chair
+mtllib chair.mtl
+o chair
+
+# Vertices for upright textured chair board (width=0.6m, height=0.85m, facing -X towards robot)
+# Robot is at origin looking along +X.
+# Chair is at +X, facing -X.
+# Local coordinates: X=depth, Y=width, Z=height
+v 0.0 -0.30 0.0
+v 0.0  0.30 0.0
+v 0.0  0.30 0.85
+v 0.0 -0.30 0.85
+
+# Back face (for double sided visibility)
+v -0.02 -0.30 0.0
+v -0.02  0.30 0.0
+v -0.02  0.30 0.85
+v -0.02 -0.30 0.85
+
+# Texture coordinates (UV)
+vt 0.0 0.0
+vt 1.0 0.0
+vt 1.0 1.0
+vt 0.0 1.0
+
+# Normals (-X is front)
+vn -1.0 0.0 0.0
+vn  1.0 0.0 0.0
+
+# Faces
+usemtl chair_mat
+f 1/1/1 2/2/1 3/3/1
+f 1/1/1 3/3/1 4/4/1
+
+f 6/2/2 5/1/2 8/4/2
+f 6/2/2 8/4/2 7/3/2

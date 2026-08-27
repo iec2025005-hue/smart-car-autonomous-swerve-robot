@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor><author>SmartCar</author></contributor>
+    <unit name="meter" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_images>
+    <image id="person_img" name="person_img">
+      <init_from>person_texture.png</init_from>
+    </image>
+  </library_images>
+  <library_materials>
+    <material id="person_mat" name="person_mat">
+      <instance_effect url="#person_eff"/>
+    </material>
+  </library_materials>
+  <library_effects>
+    <effect id="person_eff">
+      <profile_COMMON>
+        <newparam sid="person_surface">
+          <surface type="2D">
+            <init_from>person_img</init_from>
+          </surface>
+        </newparam>
+        <newparam sid="person_sampler">
+          <sampler2D>
+            <source>person_surface</source>
+          </sampler2D>
+        </newparam>
+        <technique sid="common">
+          <lambert>
+            <emission><color sid="emission">0.1 0.1 0.1 1</color></emission>
+            <ambient><color sid="ambient">0.9 0.9 0.9 1</color></ambient>
+            <diffuse>
+              <texture texture="person_sampler" texcoord="UVMap"/>
+            </diffuse>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+  </library_effects>
+  <library_geometries>
+    <geometry id="person_geo" name="person_geo">
+      <mesh>
+        <source id="positions">
+          <float_array id="pos_arr" count="12">
+            0.0 -0.300 0.0
+            0.0  0.300 0.0
+            0.0  0.300 1.600
+            0.0 -0.300 1.600
+          </float_array>
+          <technique_common>
+            <accessor source="#pos_arr" count="4" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="normals">
+          <float_array id="norm_arr" count="3">-1.0 0.0 0.0</float_array>
+          <technique_common>
+            <accessor source="#norm_arr" count="1" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="uvs">
+          <float_array id="uv_arr" count="8">
+            0.0 0.0
+            1.0 0.0
+            1.0 1.0
+            0.0 1.0
+          </float_array>
+          <technique_common>
+            <accessor source="#uv_arr" count="4" stride="2">
+              <param name="S" type="float"/>
+              <param name="T" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="vertices">
+          <input semantic="POSITION" source="#positions"/>
+        </vertices>
+        <triangles material="person_mat_symbol" count="2">
+          <input semantic="VERTEX" source="#vertices" offset="0"/>
+          <input semantic="NORMAL" source="#normals" offset="1"/>
+          <input semantic="TEXCOORD" source="#uvs" offset="2" set="0"/>
+          <p>
+            0 0 0  1 0 1  2 0 2
+            0 0 0  2 0 2  3 0 3
+          </p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="personNode" name="personNode" type="NODE">
+        <instance_geometry url="#person_geo">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="person_mat_symbol" target="#person_mat">
+                <bind_vertex_input semantic="UVMap" input_semantic="TEXCOORD" input_set="0"/>
+              </instance_material>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>

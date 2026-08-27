@@ -1,0 +1,23 @@
+# Wavefront OBJ for Chair Target
+mtllib chair.mtl
+o chair_target
+
+# Vertices (width=0.70m along Y, height=0.95m along Z, at X=0)
+v 0.0 -0.35 0.0
+v 0.0  0.35 0.0
+v 0.0  0.35 0.95
+v 0.0 -0.35 0.95
+
+# UV coordinates
+vt 0.0 0.0
+vt 1.0 0.0
+vt 1.0 1.0
+vt 0.0 1.0
+
+# Normal facing -X
+vn -1.0 0.0 0.0
+
+usemtl chair_mat
+s 1
+f 1/1/1 2/2/1 3/3/1
+f 1/1/1 3/3/1 4/4/1
