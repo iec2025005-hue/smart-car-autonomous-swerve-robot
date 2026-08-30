@@ -74,6 +74,7 @@ class Navigator:
         )
         self._avoid_hold_ticks: int = 0
         self._avoid_hold_dir: int = 0
+        self._avoid_ticks_count: int = 0
         self._target_detected_ticks: int = 0
         self._initial_approach_ticks: int = 0
         self._reacquire_ticks: int = 0
@@ -95,6 +96,7 @@ class Navigator:
             self._target_detected_ticks = 0
             self._initial_approach_ticks = 0
             self._reacquire_ticks = 0
+            self._avoid_ticks_count = 0
             self._avoid_completed = False
             self._lost_target_count = 0
             log.debug("Mode is idle -- stopping")
@@ -108,8 +110,8 @@ class Navigator:
         obstacles = [
             d for d in detections 
             if d.label == "obstacle" 
-            and (d.bbox[2] >= 20 or d.bbox[3] >= 20) 
-            and abs(d.center[0] - self._frame_cx) < 220
+            and (d.bbox[2] >= 15 or d.bbox[3] >= 15) 
+            and abs(d.center[0] - self._frame_cx) < 240
         ]
         
         # 1. Check if we have arrived at the destination target
@@ -117,90 +119,88 @@ class Navigator:
             primary = max(targets, key=lambda d: d.confidence)
             w = primary.bbox[2]
             h = primary.bbox[3]
-            d_est = 157.5 / max(1, w)
+            d_est = 344.8 / max(1.0, float(max(w, h)))
 
-            # Safe arrival distance (~0.65 - 0.75m standoff from chair, corresponding to w >= 225px, d_est ~0.70m)
-            if self._avoid_completed and w >= 225:
+            # Safe arrival distance (~0.85m standoff from chair, corresponding to h >= 320px)
+            if h >= 320 and not obstacles and self.state in ("APPROACH", "REACQUIRE"):
                 self.state = "ARRIVED"
                 self._target_detected_ticks = 0
                 self._initial_approach_ticks = 0
                 self._reacquire_ticks = 0
-                log.info("State: ARRIVED -- Target reached safe standoff distance (w=%d px, estimated distance=%.2f m)", w, d_est)
+                self._avoid_ticks_count = 0
+                log.info("State: ARRIVED -- Target reached safe standoff distance (h=%d px, estimated distance=%.2f m)", h, d_est)
                 return self._cmd_stop()
 
         if self._mode in ("follow", "autonomous"):
+            # 2. Active obstacle evasion in progress
+            if self._avoid_ticks_count > 0:
+                self._avoid_ticks_count -= 1
+                self.state = "AVOID"
+                self._reacquire_ticks = 12
+                vy_mag = int(self._base_speed * 1.25)
+                vx_cmd = int(self._base_speed * 0.65)
+                if self._avoid_hold_dir > 0:
+                    return self._cmd_swerve(vx=vx_cmd, vy=vy_mag, omega=0)
+                else:
+                    return self._cmd_swerve(vx=vx_cmd, vy=-vy_mag, omega=0)
+
+            # 3. Trigger obstacle evasion when obstacle is visible in corridor
+            if obstacles:
+                self.state = "AVOID"
+                self._target_detected_ticks = 0
+                self._initial_approach_ticks = 0
+                self._reacquire_ticks = 12
+                obs = max(obstacles, key=lambda d: d.bbox[2] * d.bbox[3])
+                log.info("State: AVOID -- Swerving around obstacle at (%d, %d)", obs.center[0], obs.center[1])
+                return self._avoid(obs, forward_progress=True)
+
             if targets:
                 primary = max(targets, key=lambda d: d.confidence)
                 self._lost_target_count = 0
 
-                # 1. Initial target acquisition from idle or search
-                if self.state in ("SEARCH", "IDLE") or self._target_detected_ticks > 0:
-                    if self.state in ("SEARCH", "IDLE"):
-                        self._target_detected_ticks = 6  # Hold for ~0.18s
-                        self._initial_approach_ticks = 10  # Hold for ~0.30s
-                    else:
-                        self._target_detected_ticks -= 1
+                # Initial target acquisition from idle or search
+                if self.state in ("SEARCH", "IDLE"):
                     self.state = "TARGET_DETECTED"
+                    self._target_detected_ticks = 4
                     log.info("State: TARGET_DETECTED -- Initial target acquisition at (%d, %d)", primary.center[0], primary.center[1])
                     return self._follow(primary)
 
-                # 2. Obstacle evasion takes immediate priority when obstacle is visible
-                if obstacles and not self._avoid_completed:
-                    self.state = "AVOID"
-                    self._target_detected_ticks = 0
-                    self._initial_approach_ticks = 0
-                    self._reacquire_ticks = 0
-                    obs = max(obstacles, key=lambda d: d.bbox[2] * d.bbox[3])
-                    log.info("State: AVOID -- Swerving around obstacle at (%d, %d)", obs.center[0], obs.center[1])
-                    return self._avoid(obs, forward_progress=True)
-
-                # 3. Initial approach towards target
-                if self._initial_approach_ticks > 0:
-                    self._initial_approach_ticks -= 1
-                    self.state = "APPROACH"
-                    log.info("State: APPROACH -- Approaching target at (%d, %d)", primary.center[0], primary.center[1])
+                if self._target_detected_ticks > 0:
+                    self._target_detected_ticks -= 1
+                    self.state = "TARGET_DETECTED"
                     return self._follow(primary)
 
-                # 4. Reacquisition after obstacle evasion
-                if self.state == "AVOID" or self._reacquire_ticks > 0:
-                    if self.state == "AVOID":
-                        self._reacquire_ticks = 6  # Hold for ~0.18s
-                        self._avoid_completed = True
-                    else:
-                        self._reacquire_ticks -= 1
+                # Reacquisition after obstacle evasion
+                if self._reacquire_ticks > 0:
+                    self._reacquire_ticks -= 1
                     self.state = "REACQUIRE"
                     log.info("State: REACQUIRE -- Target reacquired after avoiding obstacle")
                     return self._follow(primary)
 
-                # 5. Continuous approach towards destination target
+                # Continuous approach towards destination target
                 self.state = "APPROACH"
                 return self._follow(primary)
 
             else:
-                if obstacles and not self._avoid_completed:
-                    self.state = "AVOID"
-                    obs = max(obstacles, key=lambda d: d.bbox[2] * d.bbox[3])
-                    return self._avoid(obs, forward_progress=True)
-
                 self._lost_target_count += 1
-                if self._lost_target_count < 6 and self.state in ("APPROACH", "REACQUIRE", "TARGET_DETECTED"):
-                    # Brief loss tolerance: maintain current trajectory
+                if self._lost_target_count < 45:
+                    # Maintain straight forward trajectory to acquire target
                     return self._cmd_swerve(vx=self._base_speed, vy=0, omega=0)
                 
-                # No target visible -> Search state (controlled in-place scan rotation)
+                # No target visible after timeout -> Search state (scan rotation)
                 self.state = "SEARCH"
                 self._target_detected_ticks = 0
                 self._initial_approach_ticks = 0
                 self._reacquire_ticks = 0
                 log.debug("State: SEARCH -- Rotating in place to scan for target")
-                return self._cmd_swerve(vx=0, vy=0, omega=15)
+                return self._cmd_swerve(vx=0, vy=0, omega=10)
 
         elif self._mode == "search":
             self.state = "SEARCH"
             self._target_detected_ticks = 0
             self._initial_approach_ticks = 0
             self._reacquire_ticks = 0
-            return self._cmd_swerve(vx=0, vy=0, omega=15)
+            return self._cmd_swerve(vx=0, vy=0, omega=10)
 
         elif self._mode == "avoid":
             if obstacles:
@@ -221,13 +221,19 @@ class Navigator:
         self._pid.reset()
         if self._mode == "idle":
             self.state = "IDLE"
-            self._target_detected_ticks = 0
-            self._initial_approach_ticks = 0
-            self._reacquire_ticks = 0
-            self._avoid_completed = False
-            self._lost_target_count = 0
+        elif self._mode in ("follow", "autonomous"):
+            self.state = "APPROACH"
+        else:
+            self.state = "SEARCH"
+        self._target_detected_ticks = 0
+        self._initial_approach_ticks = 0
+        self._reacquire_ticks = 0
+        self._avoid_completed = False
+        self._avoid_hold_ticks = 0
+        self._avoid_ticks_count = 0
+        self._lost_target_count = 0
         log.info(
-            "Navigation mode changed: '%s' -> '%s'", old_mode, self._mode,
+            "Navigation mode changed: '%s' -> '%s' (all states reset)", old_mode, self._mode,
         )
 
 
@@ -262,19 +268,20 @@ class Navigator:
     def _avoid(self, det: Detection, forward_progress: bool = True) -> str:
         """Strafe away from the obstacle centre with safe lateral clearance."""
         error = det.center[0] - self._frame_cx
-        vx_cmd = int(self._base_speed * 0.15) if forward_progress else 0
-        vy_cmd = int(self._base_speed * 2.20)
+        vx_cmd = int(self._base_speed * 0.65) if forward_progress else 0
+        vy_cmd = int(self._base_speed * 1.25)
 
         log.debug("avoid: error=%+dpx  tolerance=%dpx  forward=%s", error, self._tolerance, forward_progress)
 
+        self._avoid_ticks_count = 35
+        self._avoid_hold_ticks = 160
+
         if error <= 0:
-            # Obstacle is on left or center: Swerve RIGHT (+Y evasion in Navigator cmd)
-            self._avoid_hold_ticks = 25
+            # Obstacle is on left or center: Swerve RIGHT (+Y evasion in Navigator cmd -> -Y in ROS)
             self._avoid_hold_dir = +1
             return self._cmd_swerve(vx=vx_cmd, vy=vy_cmd, omega=0)
         else:
-            # Obstacle is on right: Swerve LEFT (-Y evasion in Navigator cmd)
-            self._avoid_hold_ticks = 25
+            # Obstacle is on right: Swerve LEFT (-Y evasion in Navigator cmd -> +Y in ROS)
             self._avoid_hold_dir = -1
             return self._cmd_swerve(vx=vx_cmd, vy=-vy_cmd, omega=0)
 

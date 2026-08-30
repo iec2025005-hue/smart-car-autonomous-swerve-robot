@@ -22,6 +22,9 @@ ros2_ws/src/smart_car_ros/logs/
 output/*.png
 output/*.jpg
 output/*.jpeg
+ros2_ws/*.png
+ros2_ws/*.jpg
+ros2_ws/*.jpeg
 
 # IDE
 .vscode/

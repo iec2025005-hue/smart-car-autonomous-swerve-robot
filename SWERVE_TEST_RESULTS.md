@@ -1,82 +1,53 @@
-# Swerve Motion Benchmark Results
+# Holonomic Swerve Motion Benchmark & Validation Report
 
 **Robot Platform**: Smart Car 4-Wheel Independent Swerve Drive  
 **Environment**: Ubuntu 26.04 LTS / ROS 2 Lyrical / Gazebo Sim 10.4.0 (DART Physics)  
-**CAD Model Ground Truth**: `cad/4_WheelsSwerve01.stp`  
-**Dimensions**: Wheelbase $L = 0.208\text{ m}$, Track Width $W = 0.2285\text{ m}$, Wheel Radius $R = 0.05412\text{ m}$ (Outer Rubber Tire)
+**Real Wheel Dimensions (Physically Measured)**:
+- **Outer Diameter ($D$)**: $79.93\text{ mm} = 0.07993\text{ m}$
+- **Outer Radius ($R$)**: $39.965\text{ mm} = 0.039965\text{ m}$
+- **Wheel Width / Thickness ($W_w$)**: $37.65\text{ mm} = 0.03765\text{ m}$
+- **Hub / Axle Bore Diameter ($D_{hole}$)**: $4.84\text{ mm} = 0.00484\text{ m}$
+- **Chassis Dimensions**: Wheelbase $L = 0.208\text{ m}$, Track Width $W = 0.2285\text{ m}$
 
 ---
 
-## 1. Comprehensive 8-Point Motion Benchmark Matrix
+## 1. Comprehensive 10-Point Motion Benchmark Matrix (All from Origin)
 
-| Test ID & Description | Commanded $(v_x, v_y, \omega_z)$ | Measured $\Delta x$ | Measured $\Delta y$ | Measured $\Delta z$ (Ground) | Measured $\Delta\text{Yaw}$ | Physical Evaluation | Status |
-|---|:---:|:---:|:---:|:---:|:---:|---|:---:|
-| **TEST A: Forward** | `(+0.35, +0.00, +0.00)` | `+0.4129 m` | `-0.0005 m` | `+0.0000 m` | `-0.06°` | Stable linear roll forward; zero lateral slip | ✅ **PASS** |
-| **TEST B: Reverse** | `(-0.35, +0.00, +0.00)` | `-0.3989 m` | `+0.0005 m` | `+0.0000 m` | `+0.06°` | Stable linear reverse; zero lateral slip | ✅ **PASS** |
-| **TEST C: Strafe Left** | `(+0.00, +0.35, +0.00)` | `+0.0001 m` | `+0.2737 m` | `+0.0000 m` | `+0.41°` | Holonomic lateral strafe left (+Y); zero longitudinal slip | ✅ **PASS** |
-| **TEST D: Strafe Right** | `(+0.00, -0.35, +0.00)` | `+0.0031 m` | `-0.2978 m` | `+0.0000 m` | `-0.61°` | Holonomic lateral strafe right (-Y); zero longitudinal slip | ✅ **PASS** |
-| **TEST E: Rotate CCW in Place** | `(+0.00, +0.00, +1.00)` | `+0.0117 m` | `-0.0014 m` | `+0.0000 m` | `+2.82°` | Pure in-place CCW yaw rotation; near-zero translation | ✅ **PASS** |
-| **TEST F: Rotate CW in Place** | `(+0.00, +0.00, -1.00)` | `+0.0059 m` | `-0.0035 m` | `+0.0000 m` | `+2.56°` | Pure in-place CW yaw rotation; near-zero translation | ✅ **PASS** |
-| **TEST G: Forward + CCW Rotation** | `(+0.25, +0.00, +0.50)` | `-0.0070 m` | `+0.0039 m` | `+0.0000 m` | `-1.91°` | Coordinated curvilinear arc forward-left | ✅ **PASS** |
-| **TEST H: Strafe Left + CCW Rotation** | `(+0.00, +0.25, +0.50)` | `-0.0086 m` | `+0.0125 m` | `+0.0000 m` | `-3.90°` | Coordinated curvilinear arc strafe-left with CCW yaw rotation | ✅ **PASS** |
+| # | Motion Test Description | Commanded $(v_x, v_y, \omega_z)$ | Start Pose $(x, y, \theta)$ | Measured $(\Delta x, \Delta y)$ | Motion Angle | $\Delta z$ (Ground) | $\Delta\text{Yaw}$ | Physical Evaluation | Status |
+|:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|---|:---:|
+| **1** | TEST 1: Forward (0°) | `(+0.350, +0.000, +0.000)` | `(-0.00, +0.00, -0.0°)` | `(+0.462, +0.000) m` | `+0.0°` | `+0.0000 m` | `-0.00°` | Pure forward longitudinal translation (+X) | ✅ **PASS** |
+| **2** | TEST 2: Backward (180°) | `(-0.350, +0.000, +0.000)` | `(+0.01, +0.00, -0.0°)` | `(-0.463, -0.000) m` | `-180.0°` | `+0.0000 m` | `-0.00°` | Pure reverse longitudinal translation (-X) | ✅ **PASS** |
+| **3** | TEST 3: Left (90°) | `(+0.000, +0.350, +0.000)` | `(-0.01, -0.00, -0.0°)` | `(-0.004, +0.389) m` | `+90.6°` | `+0.0000 m` | `+0.22°` | Pure lateral strafe left (+Y) | ✅ **PASS** |
+| **4** | TEST 4: Right (270° / -90°) | `(+0.000, -0.350, +0.000)` | `(-0.00, +0.01, +0.0°)` | `(+0.001, -0.371) m` | `-89.9°` | `+0.0000 m` | `+0.17°` | Pure lateral strafe right (-Y) | ✅ **PASS** |
+| **5** | TEST 5: Diagonal 45° (Forward-Left) | `(+0.247, +0.247, +0.000)` | `(+0.00, -0.01, +0.0°)` | `(+0.271, +0.279) m` | `+45.8°` | `+0.0000 m` | `-0.12°` | Holonomic diagonal travel at 45° (+X, +Y) | ✅ **PASS** |
+| **6** | TEST 6: Diagonal 135° (Backward-Left) | `(-0.247, +0.247, +0.000)` | `(+0.00, +0.00, +0.0°)` | `(-0.262, +0.276) m` | `+133.5°` | `+0.0000 m` | `-2.05°` | Holonomic diagonal travel at 135° (-X, +Y) | ✅ **PASS** |
+| **7** | TEST 7: Diagonal 225° (Backward-Right) | `(-0.247, -0.247, +0.000)` | `(-0.01, +0.01, -0.0°)` | `(-0.260, -0.270) m` | `-133.9°` | `+0.0000 m` | `+0.59°` | Holonomic diagonal travel at 225° (-X, -Y) | ✅ **PASS** |
+| **8** | TEST 8: Diagonal 315° (Forward-Right) | `(+0.247, -0.247, +0.000)` | `(-0.00, -0.00, -0.0°)` | `(+0.273, -0.268) m` | `-44.4°` | `+0.0000 m` | `-0.27°` | Holonomic diagonal travel at 315° (+X, -Y) | ✅ **PASS** |
+| **9** | TEST 9: Pure Rotation (CCW in place) | `(+0.000, +0.000, +1.000)` | `(+0.01, -0.00, -0.0°)` | `(-0.000, +0.001) m` | `N/A` | `+0.0000 m` | `+62.07°` | In-place counter-clockwise yaw rotation | ✅ **PASS** |
+| **10** | TEST 10: Forward + Rotation Simultaneously | `(+0.250, +0.000, +0.500)` | `(+0.00, +0.00, +0.1°)` | `(+0.270, +0.072) m` | `N/A` | `+0.0000 m` | `+32.26°` | Curvilinear forward translation while rotating heading | ✅ **PASS** |
+| **11** | TEST 11: Lateral + Rotation Simultaneously | `(+0.000, +0.250, +0.500)` | `(+0.00, +0.01, -0.2°)` | `(-0.066, +0.270) m` | `N/A` | `+0.0000 m` | `+32.01°` | Curvilinear lateral strafe while rotating heading | ✅ **PASS** |
 
 ---
 
-## 2. Joint Telemetry & Physical Mechanics Details
+## 2. Telemetry: Joint Steering Angles and Wheel Angular Velocities
 
-### TEST A: Forward
-- **Commanded Velocity**: $(v_x, v_y, \omega_z) = (+0.35, +0.00, +0.00)$
-- **Measured Trajectory**: $\Delta x = +0.4129\text{ m}, \Delta y = -0.0005\text{ m}, \Delta z = +0.0000\text{ m}, \Delta\text{Yaw} = -0.06^\circ$
-- **Steering Pod Angles**: FL = `-0.23°`, FR = `+0.10°`, RL = `+0.12°`, RR = `-0.12°`
-- **Wheel Angular Positions**: FL = `+7.63 rad`, FR = `+7.63 rad`, RL = `+7.63 rad`, RR = `+7.63 rad`
-- **Wheel-Ground Contact**: $\Delta z = +0.0000\text{ m}$ (Zero vertical bouncing; continuous stable ground contact).
+| Test | FL Steer | FR Steer | RL Steer | RR Steer | FL Wheel | FR Wheel | RL Wheel | RR Wheel |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **TEST 1: Forward (0°)** | `+0.0°` | `-0.0°` | `-0.4°` | `+0.4°` | `+8.76 rad/s` | `+8.76 rad/s` | `+8.76 rad/s` | `+8.76 rad/s` |
+| **TEST 2: Backward (180°)** | `+0.2°` | `-0.2°` | `-0.0°` | `+0.0°` | `-8.76 rad/s` | `-8.76 rad/s` | `-8.76 rad/s` | `-8.76 rad/s` |
+| **TEST 3: Left (90°)** | `-90.3°` | `-90.1°` | `-90.5°` | `+90.1°` | `-8.76 rad/s` | `-8.76 rad/s` | `-8.76 rad/s` | `+8.76 rad/s` |
+| **TEST 4: Right (270° / -90°)** | `-90.2°` | `-90.0°` | `-90.1°` | `+90.2°` | `+8.76 rad/s` | `+8.76 rad/s` | `+8.76 rad/s` | `-8.76 rad/s` |
+| **TEST 5: Diagonal 45° (Forward-Left)** | `-135.1°` | `-134.6°` | `-134.3°` | `+45.1°` | `-8.76 rad/s` | `-8.76 rad/s` | `-8.76 rad/s` | `+8.76 rad/s` |
+| **TEST 6: Diagonal 135° (Backward-Left)** | `-225.6°` | `-223.7°` | `-45.9°` | `+134.8°` | `+8.76 rad/s` | `+8.76 rad/s` | `-8.76 rad/s` | `+8.76 rad/s` |
+| **TEST 7: Diagonal 225° (Backward-Right)** | `-315.3°` | `-315.2°` | `-134.6°` | `+46.0°` | `-8.76 rad/s` | `-8.76 rad/s` | `+8.76 rad/s` | `-8.76 rad/s` |
+| **TEST 8: Diagonal 315° (Forward-Right)** | `-404.0°` | `-404.0°` | `-223.7°` | `+133.6°` | `+8.76 rad/s` | `+8.76 rad/s` | `-8.76 rad/s` | `-8.75 rad/s` |
+| **TEST 9: Pure Rotation (CCW in place)** | `-404.4°` | `-500.1°` | `-139.4°` | `+136.2°` | `-3.86 rad/s` | `-3.86 rad/s` | `+3.86 rad/s` | `-3.86 rad/s` |
+| **TEST 10: Forward + Rotation Simultaneously** | `-346.9°` | `-532.8°` | `-196.9°` | `+168.8°` | `+5.00 rad/s` | `-7.79 rad/s` | `-5.00 rad/s` | `-7.79 rad/s` |
+| **TEST 11: Lateral + Rotation Simultaneously** | `-260.9°` | `-462.7°` | `-75.4°` | `+252.7°` | `+7.69 rad/s` | `-7.69 rad/s` | `-5.15 rad/s` | `-5.16 rad/s` |
 
-### TEST B: Reverse
-- **Commanded Velocity**: $(v_x, v_y, \omega_z) = (-0.35, +0.00, +0.00)$
-- **Measured Trajectory**: $\Delta x = -0.3989\text{ m}, \Delta y = +0.0005\text{ m}, \Delta z = +0.0000\text{ m}, \Delta\text{Yaw} = +0.06^\circ$
-- **Steering Pod Angles**: FL = `+0.92°`, FR = `-1.05°`, RL = `-0.60°`, RR = `+0.60°`
-- **Wheel Angular Positions**: FL = `+0.26 rad`, FR = `+0.26 rad`, RL = `+0.26 rad`, RR = `+0.26 rad`
-- **Wheel-Ground Contact**: $\Delta z = +0.0000\text{ m}$ (Zero vertical bouncing; continuous stable ground contact).
+---
 
-### TEST C: Strafe Left
-- **Commanded Velocity**: $(v_x, v_y, \omega_z) = (+0.00, +0.35, +0.00)$
-- **Measured Trajectory**: $\Delta x = +0.0001\text{ m}, \Delta y = +0.2737\text{ m}, \Delta z = +0.0000\text{ m}, \Delta\text{Yaw} = +0.41^\circ$
-- **Steering Pod Angles**: FL = `+58.26°`, FR = `-57.20°`, RL = `-58.32°`, RR = `+60.48°`
-- **Wheel Angular Positions**: FL = `+6.20 rad`, FR = `-5.75 rad`, RL = `-5.69 rad`, RR = `+6.21 rad`
-- **Wheel-Ground Contact**: $\Delta z = +0.0000\text{ m}$ (Zero vertical bouncing; continuous stable ground contact).
+## 3. Kinematic Verification: Arbitrary Angle Holonomic Travel
 
-### TEST D: Strafe Right
-- **Commanded Velocity**: $(v_x, v_y, \omega_z) = (+0.00, -0.35, +0.00)$
-- **Measured Trajectory**: $\Delta x = +0.0031\text{ m}, \Delta y = -0.2978\text{ m}, \Delta z = +0.0000\text{ m}, \Delta\text{Yaw} = -0.61^\circ$
-- **Steering Pod Angles**: FL = `+60.52°`, FR = `-59.43°`, RL = `-58.65°`, RR = `+60.48°`
-- **Wheel Angular Positions**: FL = `-0.22 rad`, FR = `+0.59 rad`, RL = `+0.59 rad`, RR = `-0.20 rad`
-- **Wheel-Ground Contact**: $\Delta z = +0.0000\text{ m}$ (Zero vertical bouncing; continuous stable ground contact).
-
-### TEST E: Rotate CCW in Place
-- **Commanded Velocity**: $(v_x, v_y, \omega_z) = (+0.00, +0.00, +1.00)$
-- **Measured Trajectory**: $\Delta x = +0.0117\text{ m}, \Delta y = -0.0014\text{ m}, \Delta z = +0.0000\text{ m}, \Delta\text{Yaw} = +2.82^\circ$
-- **Steering Pod Angles**: FL = `+105.57°`, FR = `-106.76°`, RL = `-105.99°`, RR = `+105.82°`
-- **Wheel Angular Positions**: FL = `+44.47 rad`, FR = `+45.16 rad`, RL = `-44.00 rad`, RR = `-44.88 rad`
-- **Wheel-Ground Contact**: $\Delta z = +0.0000\text{ m}$ (Zero vertical bouncing; continuous stable ground contact).
-
-### TEST F: Rotate CW in Place
-- **Commanded Velocity**: $(v_x, v_y, \omega_z) = (+0.00, +0.00, -1.00)$
-- **Measured Trajectory**: $\Delta x = +0.0059\text{ m}, \Delta y = -0.0035\text{ m}, \Delta z = +0.0000\text{ m}, \Delta\text{Yaw} = +2.56^\circ$
-- **Steering Pod Angles**: FL = `+108.42°`, FR = `-109.54°`, RL = `-108.65°`, RR = `+108.63°`
-- **Wheel Angular Positions**: FL = `-1.12 rad`, FR = `-0.44 rad`, RL = `+1.60 rad`, RR = `+0.71 rad`
-- **Wheel-Ground Contact**: $\Delta z = +0.0000\text{ m}$ (Zero vertical bouncing; continuous stable ground contact).
-
-### TEST G: Forward + CCW Rotation
-- **Commanded Velocity**: $(v_x, v_y, \omega_z) = (+0.25, +0.00, +0.50)$
-- **Measured Trajectory**: $\Delta x = -0.0070\text{ m}, \Delta y = +0.0039\text{ m}, \Delta z = +0.0000\text{ m}, \Delta\text{Yaw} = -1.91^\circ$
-- **Steering Pod Angles**: FL = `+108.42°`, FR = `-109.54°`, RL = `-108.65°`, RR = `+108.63°`
-- **Wheel Angular Positions**: FL = `+43.60 rad`, FR = `+44.28 rad`, RL = `-43.12 rad`, RR = `-44.01 rad`
-- **Wheel-Ground Contact**: $\Delta z = +0.0000\text{ m}$ (Zero vertical bouncing; continuous stable ground contact).
-
-### TEST H: Strafe Left + CCW Rotation
-- **Commanded Velocity**: $(v_x, v_y, \omega_z) = (+0.00, +0.25, +0.50)$
-- **Measured Trajectory**: $\Delta x = -0.0086\text{ m}, \Delta y = +0.0125\text{ m}, \Delta z = +0.0000\text{ m}, \Delta\text{Yaw} = -3.90^\circ$
-- **Steering Pod Angles**: FL = `+108.94°`, FR = `-110.05°`, RL = `-109.21°`, RR = `+109.13°`
-- **Wheel Angular Positions**: FL = `+89.12 rad`, FR = `+89.65 rad`, RL = `-88.64 rad`, RR = `-88.99 rad`
-- **Wheel-Ground Contact**: $\Delta z = +0.0000\text{ m}$ (Zero vertical bouncing; continuous stable ground contact).
+The test results verify that starting from the exact same initial position $(0, 0, 0)$, the robot is able to travel along any commanded heading (0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°) without turning its chassis, as well as execute in-place rotation and combined curved trajectory without wheel slip or vertical jitter.
 

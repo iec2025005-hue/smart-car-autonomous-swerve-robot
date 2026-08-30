@@ -1,7 +1,7 @@
 # Smart Car — Complete Demonstration & Operator Guide
 
 **Robot Platform**: Autonomous 4-Wheel Independent Swerve-Drive Smart Car  
-**Environment**: Ubuntu 26.04 LTS / ROS 2 (Lyrical/Jazzy/Humble) / Gazebo Sim 10.4.0 (DART Physics)  
+**Environment**: Ubuntu 26.04 LTS / ROS 2 Lyrical / Gazebo Sim 10.4.0 (DART Physics)  
 **CAD Model Ground Truth**: Fusion 360 Solid Bodies (`cad/4_WheelsSwerve01.stp`)  
 
 ---
@@ -12,7 +12,7 @@ Open a terminal and run:
 
 ```bash
 # 1. Source ROS 2 & Workspace
-source /opt/ros/jazzy/setup.bash 2>/dev/null || source /opt/ros/humble/setup.bash 2>/dev/null || source /opt/ros/iron/setup.bash 2>/dev/null || true
+source /opt/ros/lyrical/setup.bash
 source /home/diya/smart_car/ros2_ws/install/setup.bash
 
 # 2. Launch Complete Simulation (Gazebo GUI, Real CAD Robot, RViz2, Perception & Navigation)

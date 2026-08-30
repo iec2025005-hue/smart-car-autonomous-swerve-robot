@@ -71,7 +71,10 @@ All dimensions match the physical Fusion 360 CAD (`cad/4_WheelsSwerve01.stp`):
 |---|:---:|---|
 | **Wheelbase ($L$)** | `0.208 m` ($208\text{ mm}$) | Longitudinal distance between front and rear steering axes. |
 | **Track Width ($W$)** | `0.2285 m` ($228.5\text{ mm}$) | Transverse distance between left and right steering axes. |
-| **Wheel Radius ($R$)** | `0.0541 m` ($54.12\text{ mm}$) | Outer radius of the drive wheels. |
+| **Wheel Radius ($R$)** | `0.039965 m` ($39.965\text{ mm}$) | Outer radius of the physical drive wheels. |
+| **Wheel Diameter ($D$)** | `0.07993 m` ($79.93\text{ mm}$) | Outer diameter of the physical drive wheels. |
+| **Wheel Width ($W_w$)** | `0.03765 m` ($37.65\text{ mm}$) | Thickness/width of the physical drive wheels. |
+| **Hub Bore Diameter** | `0.00484 m` ($4.84\text{ mm}$) | Center hub axle hole diameter. |
 | **Steering-to-Wheel Offset** | `0.00 mm` | Vertical steering axis intersects wheel axle concentrically. |
 | **Steering Motors** | 4× NEMA 17 / DRV8825 | $1.8^\circ$ step angle ($200\text{ steps/rev}$) with FastAccelStepper. |
 | **Drive Motors** | 4× Geared DC Motors | 12V DC with TB6612FNG dual H-bridges and optical encoders. |

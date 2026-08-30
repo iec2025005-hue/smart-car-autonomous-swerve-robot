@@ -56,16 +56,29 @@ def generate_launch_description():
         value_type=str
     )
 
-    gz_args = PythonExpression([
-        "'-r -s ' + '", world_path, "' if '", headless, "' == 'true' else '-r ' + '", world_path, "'"
-    ])
+    from launch.actions import ExecuteProcess
 
-    # 1. Gazebo Sim Launch
-    gz_sim = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
-        ),
-        launch_arguments={'gz_args': gz_args}.items(),
+    # 1. Gazebo Sim Direct Execution (Guarantees world path and smart_car_world are loaded directly)
+    gz_sim_gui = ExecuteProcess(
+        cmd=['gz', 'sim', '-r', world_path],
+        name='gazebo',
+        output='screen',
+        additional_env={
+            'GZ_SIM_RESOURCE_PATH': resource_path_str,
+            'IGN_GAZEBO_RESOURCE_PATH': resource_path_str,
+        },
+        condition=IfCondition(PythonExpression(["'", headless, "' != 'true'"]))
+    )
+
+    gz_sim_headless = ExecuteProcess(
+        cmd=['gz', 'sim', '-r', '-s', world_path],
+        name='gazebo',
+        output='screen',
+        additional_env={
+            'GZ_SIM_RESOURCE_PATH': resource_path_str,
+            'IGN_GAZEBO_RESOURCE_PATH': resource_path_str,
+        },
+        condition=IfCondition(PythonExpression(["'", headless, "' == 'true'"]))
     )
 
     # 2. Robot State Publisher
@@ -92,7 +105,7 @@ def generate_launch_description():
             '-string', robot_description_content,
             '-x', '0.0',
             '-y', '0.0',
-            '-z', '0.05'
+            '-z', '0.0'
         ]
     )
 
@@ -173,12 +186,13 @@ def generate_launch_description():
         set_ign_resource_path,
         DeclareLaunchArgument('vision_mode', default_value='yolo', description='Vision mode: yolo, color, aruco, lane'),
         DeclareLaunchArgument('target_class', default_value='chair', description='Target YOLO class: chair, person, bottle, etc.'),
-        DeclareLaunchArgument('nav_mode', default_value='follow', description='Navigation mode: follow, avoid, patrol, idle'),
+        DeclareLaunchArgument('nav_mode', default_value='idle', description='Navigation mode: follow, avoid, patrol, idle'),
         DeclareLaunchArgument('base_speed', default_value='0.35', description='Base navigation speed (m/s)'),
         DeclareLaunchArgument('rviz', default_value='true', description='Launch RViz2'),
         DeclareLaunchArgument('headless', default_value='false', description='Run Gazebo headless'),
 
-        gz_sim,
+        gz_sim_gui,
+        gz_sim_headless,
         robot_state_publisher,
         spawn_entity,
         ros_gz_bridge,

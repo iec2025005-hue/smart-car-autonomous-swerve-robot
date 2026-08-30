@@ -30,8 +30,9 @@
         </newparam>
         <technique sid="common">
           <lambert>
-            <emission><color sid="emission">0.1 0.1 0.1 1</color></emission>
-            <ambient><color sid="ambient">0.9 0.9 0.9 1</color></ambient>
+            <emission>
+              <texture texture="chair_sampler" texcoord="UVMap"/>
+            </emission>
             <diffuse>
               <texture texture="chair_sampler" texcoord="UVMap"/>
             </diffuse>
@@ -45,10 +46,10 @@
       <mesh>
         <source id="positions">
           <float_array id="pos_arr" count="12">
-            0.0 -0.325 0.0
-            0.0  0.325 0.0
-            0.0  0.325 0.900
-            0.0 -0.325 0.900
+            0.0 -0.425 0.0
+            0.0  0.425 0.0
+            0.0  0.425 0.850
+            0.0 -0.425 0.850
           </float_array>
           <technique_common>
             <accessor source="#pos_arr" count="4" stride="3">
@@ -85,13 +86,15 @@
         <vertices id="vertices">
           <input semantic="POSITION" source="#positions"/>
         </vertices>
-        <triangles material="chair_mat_symbol" count="2">
+        <triangles material="chair_mat_symbol" count="4">
           <input semantic="VERTEX" source="#vertices" offset="0"/>
           <input semantic="NORMAL" source="#normals" offset="1"/>
           <input semantic="TEXCOORD" source="#uvs" offset="2" set="0"/>
           <p>
             0 0 0  1 0 1  2 0 2
             0 0 0  2 0 2  3 0 3
+            0 0 0  2 0 2  1 0 1
+            0 0 0  3 0 3  2 0 2
           </p>
         </triangles>
       </mesh>

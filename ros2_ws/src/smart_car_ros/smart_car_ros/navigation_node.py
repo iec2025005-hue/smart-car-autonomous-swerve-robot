@@ -65,6 +65,10 @@ class RosNavigator(Navigator):
         return cmd_str
 
 
+from geometry_msgs.msg import Point, Twist, PoseStamped
+from nav_msgs.msg import Odometry
+import math
+
 class NavigationNode(Node):
     def __init__(self):
         super().__init__('navigation_node')
@@ -91,8 +95,10 @@ class NavigationNode(Node):
 
         self.last_target = None
         self.last_obstacle = None
+        self.current_pose = (0.0, 0.0, 0.0) # (x, y, yaw)
+        self.active_goal = None              # (gx, gy, gyaw)
 
-        self.get_logger().info(f'Navigation Node ready (wrapping original Navigator) [mode={nav_mode}, base_speed={base_speed:.2f} m/s]')
+        self.get_logger().info(f'Navigation Node ready [mode={nav_mode}, base_speed={base_speed:.2f} m/s]')
 
         # ── Subscribers ────────────────────────────────────────────
         self.sub_target = self.create_subscription(
@@ -115,6 +121,88 @@ class NavigationNode(Node):
             self.set_mode_callback,
             10
         )
+
+        self.sub_odom = self.create_subscription(
+            Odometry,
+            '/odom',
+            self.odom_callback,
+            10
+        )
+
+        self.sub_goal = self.create_subscription(
+            PoseStamped,
+            '/goal_pose',
+            self.goal_pose_callback,
+            10
+        )
+
+        # 50 Hz navigation control timer for waypoint following
+        self.nav_timer = self.create_timer(0.02, self.waypoint_control_loop)
+
+    def odom_callback(self, msg: Odometry):
+        p = msg.pose.pose.position
+        q = msg.pose.pose.orientation
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        yaw = math.atan2(siny_cosp, cosy_cosp)
+        self.current_pose = (p.x, p.y, yaw)
+
+    def goal_pose_callback(self, msg: PoseStamped):
+        q = msg.pose.orientation
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        gyaw = math.atan2(siny_cosp, cosy_cosp)
+        self.active_goal = (msg.pose.position.x, msg.pose.position.y, gyaw)
+        self.navigator.set_mode("waypoint")
+        self.navigator.state = "NAV_TO_GOAL"
+        self.pub_nav_state.publish(String(data=self.navigator.state))
+        self.get_logger().info(f"Received new goal pose: ({self.active_goal[0]:.2f}, {self.active_goal[1]:.2f}, yaw={math.degrees(gyaw):.1f}°)")
+
+    def waypoint_control_loop(self):
+        if self.navigator._mode != "waypoint" or self.active_goal is None:
+            return
+
+        gx, gy, gyaw = self.active_goal
+        cx, cy, cyaw = self.current_pose
+
+        ex = gx - cx
+        ey = gy - cy
+        eyaw = (gyaw - cyaw + math.pi) % (2.0 * math.pi) - math.pi
+        dist = math.hypot(ex, ey)
+
+        if dist < 0.04 and abs(eyaw) < 0.10:
+            self.navigator.state = "GOAL_REACHED"
+            self.pub_cmd_vel.publish(Twist())
+            self.pub_nav_state.publish(String(data=self.navigator.state))
+            self.active_goal = None
+            self.get_logger().info(f"Target goal reached! Final pose: ({cx:.2f}, {cy:.2f}, yaw={math.degrees(cyaw):.1f}°)")
+            return
+
+        # Body frame errors
+        vx_body = 2.0 * (ex * math.cos(cyaw) + ey * math.sin(cyaw))
+        vy_body = 2.0 * (-ex * math.sin(cyaw) + ey * math.cos(cyaw))
+        wz_body = 2.0 * eyaw
+
+        # Distance-based deceleration
+        sp = math.hypot(vx_body, vy_body)
+        max_sp = 0.35
+        if sp > max_sp:
+            vx_body *= (max_sp / sp)
+            vy_body *= (max_sp / sp)
+        elif dist < 0.20:
+            scale = max(0.40, dist / 0.20)
+            vx_body *= scale
+            vy_body *= scale
+
+        wz_body = max(-0.8, min(0.8, wz_body))
+
+        cmd = Twist()
+        cmd.linear.x = float(vx_body)
+        cmd.linear.y = float(vy_body)
+        cmd.angular.z = float(wz_body)
+        self.pub_cmd_vel.publish(cmd)
+        self.navigator.state = "NAV_TO_GOAL"
+        self.pub_nav_state.publish(String(data=self.navigator.state))
 
     def set_mode_callback(self, msg: String):
         mode = msg.data.strip().lower()

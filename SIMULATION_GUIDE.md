@@ -59,14 +59,14 @@
 
 ### A. Full Launch with GUI & RViz2 (Default YOLO Chair Mode)
 ```bash
-source /opt/ros/jazzy/setup.bash 2>/dev/null || source /opt/ros/humble/setup.bash 2>/dev/null || source /opt/ros/iron/setup.bash 2>/dev/null || true
+source /opt/ros/lyrical/setup.bash
 source /home/diya/smart_car/ros2_ws/install/setup.bash
 ros2 launch smart_car_ros smart_car_sim.launch.py nav_mode:=follow vision_mode:=yolo target_class:=chair
 ```
 
 ### B. Headless Launch (Fast Benchmarking / Automated Testing)
 ```bash
-source /opt/ros/jazzy/setup.bash 2>/dev/null || source /opt/ros/humble/setup.bash 2>/dev/null || source /opt/ros/iron/setup.bash 2>/dev/null || true
+source /opt/ros/lyrical/setup.bash
 source /home/diya/smart_car/ros2_ws/install/setup.bash
 ros2 launch smart_car_ros smart_car_sim.launch.py nav_mode:=idle vision_mode:=yolo target_class:=chair headless:=true rviz:=false
 ```

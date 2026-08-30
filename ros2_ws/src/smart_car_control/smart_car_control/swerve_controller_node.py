@@ -27,7 +27,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, TransformStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Empty
 import tf2_ros
 
 
@@ -60,8 +60,9 @@ class SwerveControllerNode(Node):
     def __init__(self):
         super().__init__('swerve_controller_node')
 
-        # ── Parameters & Dimensions (from Fusion 360 CAD) ─────────
-        self.wheel_radius = 0.0541     # 54.1 mm radius
+        # ── Parameters & Dimensions (Real Measured Dimensions) ───
+        self.wheel_radius = 0.039965   # 39.965 mm outer radius (79.93 mm outer diameter)
+        self.wheel_width = 0.03765     # 37.65 mm width
         self.wheelbase = 0.208         # L = 20.8 cm
         self.track_width = 0.2285      # W = 22.85 cm
 
@@ -126,11 +127,25 @@ class SwerveControllerNode(Node):
             10
         )
 
+        self.sub_reset_odom = self.create_subscription(
+            Empty,
+            '/reset_odom',
+            self.reset_odom_callback,
+            10
+        )
+
         # 50 Hz control & odometry loop timer
         self.timer = self.create_timer(0.02, self.control_loop)
 
         self.target_twist = Twist()
         self.get_logger().info('Swerve Controller Node Initialized with existing SwerveKinematics.')
+
+    def reset_odom_callback(self, msg: Empty):
+        self.odom_x = 0.0
+        self.odom_y = 0.0
+        self.odom_yaw = 0.0
+        self.last_steer_angles = {'fl': 0.0, 'fr': 0.0, 'rl': 0.0, 'rr': 0.0}
+        self.get_logger().info('Odometry and steering memory reset to (0.0, 0.0, 0.0).')
 
     def cmd_vel_callback(self, msg: Twist):
         self.target_twist = msg

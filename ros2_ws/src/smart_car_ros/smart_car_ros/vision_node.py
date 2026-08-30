@@ -27,9 +27,10 @@ from vision.tracker import Tracker
 from display.overlay import Overlay
 from utils.fps import FPSCounter
 
+import math
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Point, Twist
+from geometry_msgs.msg import Point, Twist, PoseStamped
 from sensor_msgs.msg import Image
 from std_msgs.msg import String, Float64MultiArray
 from cv_bridge import CvBridge
@@ -73,6 +74,7 @@ class VisionNode(Node):
 
         # ── Publishers ─────────────────────────────────────────────
         self.pub_target = self.create_publisher(Point, '/target_point', 10)
+        self.pub_target_estimated = self.create_publisher(PoseStamped, '/target_pose_estimated', 10)
         self.pub_obstacle = self.create_publisher(Point, '/obstacle_point', 10)
         self.pub_annotated = self.create_publisher(Image, '/camera/image_annotated', 10)
 
@@ -247,10 +249,21 @@ class VisionNode(Node):
                     targets = [det]
                     detections.append(det)
 
-        # 5. Compute target and obstacle point messages
+        # 5. Compute 3D target coordinate estimation and target/obstacle point messages
         target_msg = Point()
         target_label = "None"
         target_conf = 0.0
+        target_3d_str = "Target 3D: None"
+
+        nominal_widths = {
+            'chair': 0.65,
+            'person': 0.60,
+            'bottle': 0.35,
+            'color_target': 0.24,
+            'red': 0.24,
+            'aruco': 0.35,
+        }
+
         if targets:
             primary_target = max(targets, key=lambda d: d.confidence)
             target_msg.x = float(primary_target.center[0])
@@ -258,6 +271,33 @@ class VisionNode(Node):
             target_msg.z = float(primary_target.bbox[2])  # Width of target bbox
             target_label = primary_target.label
             target_conf = primary_target.confidence * 100.0
+
+            # 3D Position Estimation using Pinhole Camera Geometry
+            # fx = (640 / 2) / tan(62.2° / 2) ≈ 530.4 px
+            fx = 530.4
+            cx_img, cy_img = primary_target.center
+            w_px = max(1.0, float(primary_target.bbox[2]))
+            
+            # Lookup nominal physical object width
+            obj_key = self.target_class.lower()
+            w_real = nominal_widths.get(obj_key, 0.50)
+            
+            d_est = (w_real * fx) / w_px
+            bearing_rad = math.atan2(cx_img - 320.0, fx)
+            
+            # Robot body frame (+X forward, +Y left)
+            x_body = d_est * math.cos(bearing_rad)
+            y_body = -d_est * math.sin(bearing_rad)
+            target_3d_str = f"Target 3D: X={x_body:.2f}m, Y={y_body:+.2f}m, D={d_est:.2f}m"
+
+            # Publish estimated 3D pose
+            est_pose = PoseStamped()
+            est_pose.header = msg.header
+            est_pose.header.frame_id = 'base_link'
+            est_pose.pose.position.x = float(x_body)
+            est_pose.pose.position.y = float(y_body)
+            est_pose.pose.position.z = 0.0
+            self.pub_target_estimated.publish(est_pose)
         else:
             target_msg.x = 0.0
             target_msg.y = 0.0
@@ -293,9 +333,9 @@ class VisionNode(Node):
 
         # Draw Custom Comprehensive Smart Car HUD telemetry banner on top
         hud_bg = annotated_frame.copy()
-        cv2.rectangle(hud_bg, (5, 5), (410, 160), (20, 20, 20), -1)
+        cv2.rectangle(hud_bg, (5, 5), (420, 180), (20, 20, 20), -1)
         cv2.addWeighted(hud_bg, 0.75, annotated_frame, 0.25, 0, annotated_frame)
-        cv2.rectangle(annotated_frame, (5, 5), (410, 160), (80, 80, 80), 1)
+        cv2.rectangle(annotated_frame, (5, 5), (420, 180), (80, 80, 80), 1)
 
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.40
@@ -313,12 +353,13 @@ class VisionNode(Node):
         cv2.putText(annotated_frame, conf_str, (12, 52), font, font_scale, c_white, 1)
         tgt_center_str = f"Target center: {target_msg.x:.0f},{target_msg.y:.0f}" if target_msg.z > 0 else "Target center: None"
         cv2.putText(annotated_frame, tgt_center_str, (12, 68), font, font_scale, c_white, 1)
-        cv2.putText(annotated_frame, f"Navigation state: {self.current_nav_state}", (12, 84), font, font_scale, c_yellow, 1)
-        cv2.putText(annotated_frame, f"PID error: {self.current_pid_err:+.1f} px", (12, 100), font, font_scale, c_white, 1)
-        cv2.putText(annotated_frame, f"Command velocity: vx={self.current_cmd_vel[0]:+.2f}, vy={self.current_cmd_vel[1]:+.2f}, wz={self.current_cmd_vel[2]:+.2f}", (12, 116), font, font_scale, c_white, 1)
+        cv2.putText(annotated_frame, target_3d_str, (12, 84), font, font_scale, c_cyan if target_msg.z > 0 else c_white, 1)
+        cv2.putText(annotated_frame, f"Navigation state: {self.current_nav_state}", (12, 100), font, font_scale, c_yellow, 1)
+        cv2.putText(annotated_frame, f"PID error: {self.current_pid_err:+.1f} px", (12, 116), font, font_scale, c_white, 1)
+        cv2.putText(annotated_frame, f"Command velocity: vx={self.current_cmd_vel[0]:+.2f}, vy={self.current_cmd_vel[1]:+.2f}, wz={self.current_cmd_vel[2]:+.2f}", (12, 132), font, font_scale, c_white, 1)
         obs_str = f"Obstacle: YES ({obs_msg.x:.0f},{obs_msg.y:.0f})" if obs_msg.z > 0 else "Obstacle: NO"
-        cv2.putText(annotated_frame, obs_str, (12, 132), font, font_scale, c_red if obs_msg.z > 0 else c_green, 1)
-        cv2.putText(annotated_frame, f"FPS: {fps_val:.1f}", (12, 148), font, font_scale, (180, 180, 180), 1)
+        cv2.putText(annotated_frame, obs_str, (12, 148), font, font_scale, c_red if obs_msg.z > 0 else c_green, 1)
+        cv2.putText(annotated_frame, f"FPS: {fps_val:.1f}", (12, 164), font, font_scale, (180, 180, 180), 1)
 
         # 7. Publish annotated image
         try:

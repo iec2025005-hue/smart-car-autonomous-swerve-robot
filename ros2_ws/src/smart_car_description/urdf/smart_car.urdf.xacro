@@ -13,11 +13,13 @@
   <xacro:property name="chassis_width" value="0.282"/>  <!-- 28.2 cm -->
   <xacro:property name="chassis_height" value="0.13"/>  <!-- 13.0 cm -->
   <xacro:property name="chassis_mass" value="2.5"/>     <!-- 2.5 kg -->
-  <xacro:property name="wheel_radius" value="0.0541"/>  <!-- 54.1 mm radius from CAD -->
+  <xacro:property name="wheel_radius" value="0.039965"/> <!-- 39.965 mm outer radius (79.93 mm diameter) -->
+  <xacro:property name="wheel_width" value="0.03765"/>   <!-- 37.65 mm width/thickness -->
+  <xacro:property name="wheel_hub_hole" value="0.00484"/> <!-- 4.84 mm axle hole diameter -->
 
-  <!-- Include Swerve Module and Sensor Macros -->
-  <xacro:include filename="$(find smart_car_description)/urdf/swerve_module.xacro"/>
-  <xacro:include filename="$(find smart_car_description)/urdf/sensors.xacro"/>
+  <!-- Include Swerve Module and Sensor Macros (relative includes work in all environments) -->
+  <xacro:include filename="swerve_module.xacro"/>
+  <xacro:include filename="sensors.xacro"/>
 
   <!-- ═══════════════════════════════════════════════════ -->
   <!--  BASE FOOTPRINT (Ground projection Z = 0)           -->

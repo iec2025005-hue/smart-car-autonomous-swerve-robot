@@ -20,7 +20,6 @@ setup(
     maintainer_email='diya@todo.todo',
     description='Swerve drive controller and odometry node using existing swerve kinematics',
     license='MIT',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'swerve_controller_node = smart_car_control.swerve_controller_node:main',

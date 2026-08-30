@@ -2,7 +2,7 @@
 
 **Date**: 2026-08-27  
 **Platform**: Smart Car Autonomous 4-Wheel Swerve Drive  
-**Environment**: Ubuntu 26.04 LTS / ROS 2 (Lyrical/Jazzy/Humble) / Gazebo Sim 10.4.0 (DART Physics)  
+**Environment**: Ubuntu 26.04 LTS / ROS 2 Lyrical / Gazebo Sim 10.4.0 (DART Physics)  
 **CAD Model Ground Truth**: Fusion 360 Solid Bodies (`cad/4_WheelsSwerve01.stp`)  
 
 ---

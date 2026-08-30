@@ -100,9 +100,13 @@ TRACKER_IOU_THRESHOLD = 0.3
 # ──────────────────────────────────────────────
 #  Navigation / PID / Swerve
 # ──────────────────────────────────────────────
-# Swerve Kinematics Dimensions (from Fusion 360 CAD)
+# Swerve Kinematics & Physical Dimensions (Real Measured Dimensions)
 SWERVE_WHEELBASE_LENGTH = 20.8      # distance between front and rear axles (cm)
 SWERVE_TRACK_WIDTH = 22.85          # distance between left and right wheels (cm)
+SWERVE_WHEEL_RADIUS = 3.9965        # Outer wheel radius (cm) = 39.965 mm
+SWERVE_WHEEL_DIAMETER = 7.993       # Outer wheel diameter (cm) = 79.93 mm
+SWERVE_WHEEL_WIDTH = 3.765          # Wheel width/thickness (cm) = 37.65 mm
+SWERVE_AXLE_HOLE_DIAMETER = 0.484   # Hub/axle hole diameter (cm) = 4.84 mm
 MAX_DRIVE_SPEED = 255               # Maximum PWM value for drive motors
 
 BASE_SPEED = 150                    # Default translational speed

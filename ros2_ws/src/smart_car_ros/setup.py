@@ -20,7 +20,6 @@ setup(
     maintainer_email='user@todo.todo',
     description='ROS 2 package for Smart Car with Swerve Drive and YOLO vision',
     license='TODO: License declaration',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'vision_node = smart_car_ros.vision_node:main',
