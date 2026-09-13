@@ -40,11 +40,8 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://smart_car_description/meshes/chassis.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://smart_car_description/meshes/chassis.dae" scale="1.0 1.0 1.0"/>
       </geometry>
-      <material name="chassis_metal">
-        <color rgba="0.25 0.35 0.45 1.0"/>
-      </material>
     </visual>
 
     <!-- Collision geometry (Chassis deck positioned with clearance above swerve pods) -->
@@ -81,8 +78,8 @@
     x_offset="${wheelbase / 2.0}"
     y_offset="${track_width / 2.0}"
     z_offset="0.0"
-    steer_mesh="fl_steer_bracket.stl"
-    wheel_mesh="wheel_left.stl"/>
+    steer_mesh="fl_steer_bracket.dae"
+    wheel_mesh="wheel_left.dae"/>
 
   <!-- Front-Right (FR): x = +0.104, y = -0.11425 -->
   <xacro:swerve_module
@@ -91,8 +88,8 @@
     x_offset="${wheelbase / 2.0}"
     y_offset="${-track_width / 2.0}"
     z_offset="0.0"
-    steer_mesh="fr_steer_bracket.stl"
-    wheel_mesh="wheel_right.stl"/>
+    steer_mesh="fr_steer_bracket.dae"
+    wheel_mesh="wheel_right.dae"/>
 
   <!-- Rear-Left (RL): x = -0.104, y = +0.11425 -->
   <xacro:swerve_module
@@ -101,8 +98,8 @@
     x_offset="${-wheelbase / 2.0}"
     y_offset="${track_width / 2.0}"
     z_offset="0.0"
-    steer_mesh="rl_steer_bracket.stl"
-    wheel_mesh="wheel_left.stl"/>
+    steer_mesh="rl_steer_bracket.dae"
+    wheel_mesh="wheel_left.dae"/>
 
   <!-- Rear-Right (RR): x = -0.104, y = -0.11425 -->
   <xacro:swerve_module
@@ -111,8 +108,8 @@
     x_offset="${-wheelbase / 2.0}"
     y_offset="${-track_width / 2.0}"
     z_offset="0.0"
-    steer_mesh="rr_steer_bracket.stl"
-    wheel_mesh="wheel_right.stl"/>
+    steer_mesh="rr_steer_bracket.dae"
+    wheel_mesh="wheel_right.dae"/>
 
   <!-- ═══════════════════════════════════════════════════ -->
   <!--  GAZEBO SIMULATION PLUGINS                          -->
@@ -139,46 +136,46 @@
     <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
       <joint_name>fl_steer_joint</joint_name>
       <topic>fl_steer_cmd</topic>
-      <p_gain>8.0</p_gain>
-      <i_gain>0.5</i_gain>
-      <d_gain>0.2</d_gain>
-      <i_max>1.0</i_max>
-      <i_min>-1.0</i_min>
-      <cmd_max>10.0</cmd_max>
-      <cmd_min>-10.0</cmd_min>
+      <p_gain>16.0</p_gain>
+      <i_gain>1.0</i_gain>
+      <d_gain>0.3</d_gain>
+      <i_max>2.0</i_max>
+      <i_min>-2.0</i_min>
+      <cmd_max>15.0</cmd_max>
+      <cmd_min>-15.0</cmd_min>
     </plugin>
     <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
       <joint_name>fr_steer_joint</joint_name>
       <topic>fr_steer_cmd</topic>
-      <p_gain>8.0</p_gain>
-      <i_gain>0.5</i_gain>
-      <d_gain>0.2</d_gain>
-      <i_max>1.0</i_max>
-      <i_min>-1.0</i_min>
-      <cmd_max>10.0</cmd_max>
-      <cmd_min>-10.0</cmd_min>
+      <p_gain>16.0</p_gain>
+      <i_gain>1.0</i_gain>
+      <d_gain>0.3</d_gain>
+      <i_max>2.0</i_max>
+      <i_min>-2.0</i_min>
+      <cmd_max>15.0</cmd_max>
+      <cmd_min>-15.0</cmd_min>
     </plugin>
     <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
       <joint_name>rl_steer_joint</joint_name>
       <topic>rl_steer_cmd</topic>
-      <p_gain>8.0</p_gain>
-      <i_gain>0.5</i_gain>
-      <d_gain>0.2</d_gain>
-      <i_max>1.0</i_max>
-      <i_min>-1.0</i_min>
-      <cmd_max>10.0</cmd_max>
-      <cmd_min>-10.0</cmd_min>
+      <p_gain>16.0</p_gain>
+      <i_gain>1.0</i_gain>
+      <d_gain>0.3</d_gain>
+      <i_max>2.0</i_max>
+      <i_min>-2.0</i_min>
+      <cmd_max>15.0</cmd_max>
+      <cmd_min>-15.0</cmd_min>
     </plugin>
     <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
       <joint_name>rr_steer_joint</joint_name>
       <topic>rr_steer_cmd</topic>
-      <p_gain>8.0</p_gain>
-      <i_gain>0.5</i_gain>
-      <d_gain>0.2</d_gain>
-      <i_max>1.0</i_max>
-      <i_min>-1.0</i_min>
-      <cmd_max>10.0</cmd_max>
-      <cmd_min>-10.0</cmd_min>
+      <p_gain>16.0</p_gain>
+      <i_gain>1.0</i_gain>
+      <d_gain>0.3</d_gain>
+      <i_max>2.0</i_max>
+      <i_min>-2.0</i_min>
+      <cmd_max>15.0</cmd_max>
+      <cmd_min>-15.0</cmd_min>
     </plugin>
   </gazebo>
 

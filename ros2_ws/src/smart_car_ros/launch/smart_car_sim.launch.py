@@ -109,11 +109,10 @@ def generate_launch_description():
         ]
     )
 
-    # 4. ROS-Gazebo Parameter Bridge
-    bridge_topics = [
+    # 4. ROS-Gazebo Parameter Bridges
+    # 4a. Core Telemetry, Simulation Clock, and Actuator Commands
+    core_bridge_topics = [
         '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-        '/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image',
-        '/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
         '/imu/data@sensor_msgs/msg/Imu[gz.msgs.IMU',
         '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
         '/fl_steer_cmd@std_msgs/msg/Float64]gz.msgs.Double',
@@ -131,8 +130,23 @@ def generate_launch_description():
         executable='parameter_bridge',
         name='ros_gz_bridge',
         output='screen',
-        arguments=bridge_topics,
-        parameters=[{'use_sim_time': True}]
+        arguments=core_bridge_topics,
+        parameters=[{'use_sim_time': False}]
+    )
+
+    # 4b. Dedicated Camera Stream Bridge (640x480 RGB @ 30 FPS + CameraInfo)
+    camera_bridge_topics = [
+        '/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image',
+        '/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
+    ]
+
+    ros_gz_camera_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='ros_gz_camera_bridge',
+        output='screen',
+        arguments=camera_bridge_topics,
+        parameters=[{'use_sim_time': False}]
     )
 
     # 5. Swerve Controller Node (Math, Kinematics, Odometry, TF)
@@ -196,6 +210,7 @@ def generate_launch_description():
         robot_state_publisher,
         spawn_entity,
         ros_gz_bridge,
+        ros_gz_camera_bridge,
         swerve_controller,
         vision_node,
         navigation_node,

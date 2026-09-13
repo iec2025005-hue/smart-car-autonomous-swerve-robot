@@ -27,7 +27,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, TransformStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64, Empty
+from std_msgs.msg import Float64, Empty, Float64MultiArray
 import tf2_ros
 
 
@@ -134,11 +134,30 @@ class SwerveControllerNode(Node):
             10
         )
 
+        self.override_joints = None
+        self.override_expire_time = 0.0
+        self.sub_override_joints = self.create_subscription(
+            Float64MultiArray,
+            '/test/override_joints',
+            self.override_joints_callback,
+            10
+        )
+
         # 50 Hz control & odometry loop timer
         self.timer = self.create_timer(0.02, self.control_loop)
 
         self.target_twist = Twist()
         self.get_logger().info('Swerve Controller Node Initialized with existing SwerveKinematics.')
+
+    def override_joints_callback(self, msg: Float64MultiArray):
+        try:
+            if len(msg.data) == 8:
+                self.override_joints = [float(x) for x in msg.data]
+                self.override_expire_time = self.get_clock().now().nanoseconds * 1e-9 + 0.3
+            else:
+                self.override_joints = None
+        except Exception:
+            self.override_joints = None
 
     def reset_odom_callback(self, msg: Empty):
         self.odom_x = 0.0
@@ -151,17 +170,20 @@ class SwerveControllerNode(Node):
         self.target_twist = msg
 
     def joint_states_callback(self, msg: JointState):
-        for i, name in enumerate(msg.name):
-            if i < len(msg.position):
-                self.current_joint_positions[name] = msg.position[i]
-            if i < len(msg.velocity):
-                self.current_joint_velocities[name] = msg.velocity[i]
+        try:
+            for i, name in enumerate(msg.name):
+                if i < len(msg.position):
+                    self.current_joint_positions[name] = float(msg.position[i])
+                if i < len(msg.velocity):
+                    self.current_joint_velocities[name] = float(msg.velocity[i])
+        except Exception:
+            pass
 
-    def optimize_steering(self, actual_angle: float, target_angle: float, target_speed: float):
+    def optimize_steering(self, mod: str, actual_angle: float, target_angle: float, target_speed: float):
         """Shortest path steering optimization with continuous angle unwrapping and cosine scaling."""
         if abs(target_speed) < 1e-4:
-            # Idle: maintain current angle to prevent jitter
-            return actual_angle, 0.0
+            # Idle: maintain last commanded angle to prevent jitter or sensor creep
+            return self.last_steer_angles.get(mod, actual_angle), 0.0
 
         # Shortest-angle difference in [-pi, pi]
         delta = normalize_angle(target_angle - actual_angle)
@@ -187,41 +209,49 @@ class SwerveControllerNode(Node):
         return cmd_angle, cmd_speed
 
     def control_loop(self):
-        # 1. READ TARGET TWIST (m/s, rad/s in REP-103)
-        vx = self.target_twist.linear.x
-        vy = self.target_twist.linear.y
-        wz = self.target_twist.angular.z
+        now_sec = self.get_clock().now().nanoseconds * 1e-9
+        if self.override_joints is not None and now_sec < self.override_expire_time:
+            fl_s, fr_s, rl_s, rr_s, fl_w, fr_w, rl_w, rr_w = self.override_joints
+            cmd_steer = {'fl': fl_s, 'fr': fr_s, 'rl': rl_s, 'rr': rr_s}
+            cmd_wheel = {'fl': fl_w, 'fr': fr_w, 'rl': rl_w, 'rr': rr_w}
+            for m in ['fl', 'fr', 'rl', 'rr']:
+                self.last_steer_angles[m] = cmd_steer[m]
+        else:
+            # 1. READ TARGET TWIST (m/s, rad/s in REP-103)
+            vx = self.target_twist.linear.x
+            vy = self.target_twist.linear.y
+            wz = self.target_twist.angular.z
 
-        # 2. EVALUATE SWERVE KINEMATICS
-        # Returns [(a_fr, s_fr), (a_fl, s_fl), (a_rl, s_rl), (a_rr, s_rr)]
-        # angle in degrees [-180, 180], speed in m/s
-        results = self.kinematics.calculate(vx, vy, wz)
+            # 2. EVALUATE SWERVE KINEMATICS
+            # Returns [(a_fr, s_fr), (a_fl, s_fl), (a_rl, s_rl), (a_rr, s_rr)]
+            # angle in degrees [-180, 180], speed in m/s
+            results = self.kinematics.calculate(vx, vy, wz)
 
-        res_fr = results[0]
-        res_fl = results[1]
-        res_rl = results[2]
-        res_rr = results[3]
+            res_fr = results[0]
+            res_fl = results[1]
+            res_rl = results[2]
+            res_rr = results[3]
 
-        raw_modules = {
-            'fr': (math.radians(res_fr[0]), res_fr[1]),
-            'fl': (math.radians(res_fl[0]), res_fl[1]),
-            'rl': (math.radians(res_rl[0]), res_rl[1]),
-            'rr': (math.radians(res_rr[0]), res_rr[1]),
-        }
+            raw_modules = {
+                'fr': (math.radians(res_fr[0]), res_fr[1]),
+                'fl': (math.radians(res_fl[0]), res_fl[1]),
+                'rl': (math.radians(res_rl[0]), res_rl[1]),
+                'rr': (math.radians(res_rr[0]), res_rr[1]),
+            }
 
-        # 3. APPLY SHORTEST-PATH OPTIMIZATION & CONVERT TO WHEEL ANGULAR VELOCITY
-        cmd_steer = {}
-        cmd_wheel = {}
+            # 3. APPLY SHORTEST-PATH OPTIMIZATION & CONVERT TO WHEEL ANGULAR VELOCITY
+            cmd_steer = {}
+            cmd_wheel = {}
 
-        for mod, (target_ang, target_spd) in raw_modules.items():
-            s_joint = f"{mod}_steer_joint"
-            cur_pos = self.current_joint_positions.get(s_joint, self.last_steer_angles[mod])
-            opt_ang, opt_spd = self.optimize_steering(cur_pos, target_ang, target_spd)
-            self.last_steer_angles[mod] = opt_ang
+            for mod, (target_ang, target_spd) in raw_modules.items():
+                s_joint = f"{mod}_steer_joint"
+                cur_pos = self.current_joint_positions.get(s_joint, self.last_steer_angles[mod])
+                opt_ang, opt_spd = self.optimize_steering(mod, cur_pos, target_ang, target_spd)
+                self.last_steer_angles[mod] = opt_ang
 
-            cmd_steer[mod] = opt_ang
-            # Wheel angular velocity: omega = v / r
-            cmd_wheel[mod] = opt_spd / self.wheel_radius
+                cmd_steer[mod] = opt_ang
+                # Wheel angular velocity: omega = v / r
+                cmd_wheel[mod] = opt_spd / self.wheel_radius
 
         # 4. PUBLISH JOINT COMMANDS
         self.pub_fl_steer.publish(Float64(data=float(cmd_steer['fl'])))
@@ -349,11 +379,20 @@ def main(args=None):
     node = SwerveControllerNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException, RuntimeError):
+        pass
+    except Exception:
         pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        try:
+            node.destroy_node()
+        except Exception:
+            pass
+        if rclpy.ok():
+            try:
+                rclpy.shutdown()
+            except Exception:
+                pass
 
 
 if __name__ == '__main__':

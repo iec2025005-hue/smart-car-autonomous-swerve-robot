@@ -130,6 +130,13 @@ def main():
         ("WAYPOINT 7: Precision Return to Origin (0.0, 0.0, 0.0°)", +0.00, +0.00, +0.0),
     ]
 
+    # Ensure DDS discovery and subscription connection
+    t_wait = time.time()
+    while (node.pub_goal.get_subscription_count() < 1 or node.current_pose is None) and time.time() - t_wait < 5.0:
+        rclpy.spin_once(node, timeout_sec=0.05)
+        time.sleep(0.05)
+    time.sleep(0.5)
+
     results = []
     for name, gx, gy, gyaw in test_waypoints:
         print(f"\n>>> Executing {name}")

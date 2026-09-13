@@ -248,12 +248,25 @@ def main(args=None):
     node = NavigationNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException, RuntimeError):
+        pass
+    except Exception:
         pass
     finally:
-        node.pub_cmd_vel.publish(Twist())
-        node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            try:
+                node.pub_cmd_vel.publish(Twist())
+            except Exception:
+                pass
+        try:
+            node.destroy_node()
+        except Exception:
+            pass
+        if rclpy.ok():
+            try:
+                rclpy.shutdown()
+            except Exception:
+                pass
 
 
 if __name__ == '__main__':

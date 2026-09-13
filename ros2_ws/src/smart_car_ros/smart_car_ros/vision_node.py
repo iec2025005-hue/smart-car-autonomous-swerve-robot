@@ -375,13 +375,25 @@ def main(args=None):
     node = VisionNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException, RuntimeError):
+        pass
+    except Exception:
         pass
     finally:
-        if hasattr(node, 'detector') and node.detector is not None:
-            node.detector.release()
-        node.destroy_node()
-        rclpy.shutdown()
+        try:
+            if hasattr(node, 'detector') and node.detector is not None:
+                node.detector.release()
+        except Exception:
+            pass
+        try:
+            node.destroy_node()
+        except Exception:
+            pass
+        if rclpy.ok():
+            try:
+                rclpy.shutdown()
+            except Exception:
+                pass
 
 
 if __name__ == '__main__':

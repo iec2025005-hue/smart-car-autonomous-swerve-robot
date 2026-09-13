@@ -121,8 +121,8 @@ class Navigator:
             h = primary.bbox[3]
             d_est = 344.8 / max(1.0, float(max(w, h)))
 
-            # Safe arrival distance (~0.85m standoff from chair, corresponding to h >= 320px)
-            if h >= 320 and not obstacles and self.state in ("APPROACH", "REACQUIRE"):
+            # Safe arrival distance (~0.9m to 1.3m standoff from chair, corresponding to h >= 250px)
+            if h >= 250 and not obstacles and self.state in ("APPROACH", "REACQUIRE", "TARGET_DETECTED"):
                 self.state = "ARRIVED"
                 self._target_detected_ticks = 0
                 self._initial_approach_ticks = 0
